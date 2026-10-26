@@ -77,3 +77,13 @@ button{font:inherit}
 @media(max-width:680px){.lead-form{padding:18px}.lead-form h3{font-size:17px}}
 
 .lead-form .form-privacy{margin:4px 0;color:#c5d4dc;font-size:10px;line-height:1.75}
+
+/* Phase 5: active Firestore lead form controls and status feedback */
+.lead-form .lead-consent{display:flex;align-items:flex-start;gap:10px;font-weight:400;line-height:1.6}
+.lead-form .lead-consent input[type="checkbox"]{width:18px;min-width:18px;height:18px;min-height:18px;padding:0;margin:1px 0 0;accent-color:#7bb8e8}
+.lead-form .lead-status{min-height:0;margin:0;font-size:12px;line-height:1.6}
+.lead-form .lead-status:empty{display:none}
+.lead-form .lead-status.error{color:#ffb8b8}
+.lead-form .lead-status.success{color:#a7edc2}
+.lead-form .lead-submit{background:#0c679f;color:#fff;cursor:pointer;opacity:1}
+.lead-form .lead-submit:disabled{opacity:.65;cursor:wait}
