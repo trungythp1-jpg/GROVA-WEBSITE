@@ -2,12 +2,15 @@
 
 ## Quyết định đã chốt
 - Kênh liên hệ ưu tiên: Zalo chính thức của GROVA (đường dẫn chưa được cung cấp; không tự tạo link).
-- Nơi lưu lead: Firebase project hiện có, tên người dùng cung cấp là `GROVA-WEBSITE`.
+- Nơi lưu lead: Firebase project hiện có, tên hiển thị `GROVA-WEBSITE`, Project ID đã xác nhận từ Console: `grova-website`.
+- Web App đã đăng ký: App ID `1:636250248853:web:ba1bd2e9e237b2ca5bad9c`.
+- Cấu hình public web app được lưu tại `firebase-config.js` và được nạp từ `index.html`.
 - Không tự tạo tài khoản, email, Firebase project, credential hoặc liên kết Zalo.
 - Không bật form nhận dữ liệu thật cho đến khi xác minh đúng Firebase project và kiểm tra bảo mật.
 
 ## Trạng thái trong mã nguồn
 - Đã thêm khung biểu mẫu: họ tên, số điện thoại, email tùy chọn và lĩnh vực cần tư vấn.
+- Đã thêm `firebase-config.js` với cấu hình web app do chủ website cung cấp. Các giá trị Firebase Web config là thông tin định danh phía client, không phải service-account credential.
 - Các trường và nút gửi đang bị vô hiệu hóa có chủ đích. Biểu mẫu không gửi dữ liệu đi đâu và không lưu dữ liệu ở trình duyệt.
 - Số điện thoại công khai đã được chủ website xác nhận trước đó vẫn có thể gọi trực tiếp.
 - Chưa có nút/link Zalo vì chưa được cung cấp URL OA/tài khoản chính thức.
