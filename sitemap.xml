@@ -1,9 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/</loc></url>
-  <url><loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/projects.html</loc></url>
-  <url><loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/pages/elevator.html</loc></url>
-  <url><loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/pages/elevator-interiors.html</loc></url>
-  <url><loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/pages/law.html</loc></url>
-  <url><loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/pages/education.html</loc></url>
+  <url>
+    <loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/</loc>
+  </url>
+  <url>
+    <loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/projects.html</loc>
+  </url>
+  <url>
+    <loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/pages/elevator.html</loc>
+  </url>
+  <url>
+    <loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/pages/elevator-interiors.html</loc>
+  </url>
+  <url>
+    <loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/pages/law.html</loc>
+  </url>
+  <url>
+    <loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/pages/education.html</loc>
+  </url>
 </urlset>
