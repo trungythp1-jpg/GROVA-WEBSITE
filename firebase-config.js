@@ -1,5 +1,3 @@
-// Firebase Web App config for GROVA WEBSITE.
-// Public client configuration only; never place service-account credentials here.
 export const firebaseConfig = Object.freeze({
   apiKey: "AIzaSyA_gL5jHUlg4yFhQd-wHT2Gvy8bko13q5U",
   authDomain: "grova-website.firebaseapp.com",
