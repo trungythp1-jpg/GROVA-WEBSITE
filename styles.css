@@ -75,3 +75,5 @@ button{font:inherit}
 .lead-form select:disabled option{color:#172c3a}
 .lead-form .lead-submit{margin-top:8px;border:0;background:#81939d;color:#fff;cursor:not-allowed;opacity:.9}
 @media(max-width:680px){.lead-form{padding:18px}.lead-form h3{font-size:17px}}
+
+.lead-form .form-privacy{margin:4px 0;color:#c5d4dc;font-size:10px;line-height:1.75}
