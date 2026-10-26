@@ -11,3 +11,15 @@
 .cards .featured a{color:#fff}
 .contact{background:linear-gradient(115deg,#062c4c 0%,#064a72 72%,#08783f 125%)}
 @media(max-width:680px){.brand-logo{height:38px;max-width:190px}}
+
+/* Ecosystem visibility safety: cards must remain readable if ScrollTrigger fails or is restored mid-scroll. */
+#ecosystem .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:18px}
+#ecosystem .cards article{opacity:1!important;visibility:visible!important;transform:none;min-width:0;min-height:300px}
+#ecosystem .cards article:not(.featured){background:#fff;color:var(--ink);border-color:#dbe5ea}
+#ecosystem .cards article:not(.featured) .number{color:#71838f}
+#ecosystem .cards article:not(.featured) h3{color:#07518b}
+#ecosystem .cards article:not(.featured) .symbol{color:#168b35}
+#ecosystem .cards article:not(.featured) p{color:#566a77}
+#ecosystem .cards article:not(.featured) a{color:#07518b;border-color:#dbe5ea}
+#ecosystem .cards .featured{background:linear-gradient(145deg,#07518b 0%,#063655 70%,#087a43 130%)}
+@media(max-width:680px){#ecosystem .cards{grid-template-columns:1fr;gap:14px}#ecosystem .cards article{min-height:260px}}
