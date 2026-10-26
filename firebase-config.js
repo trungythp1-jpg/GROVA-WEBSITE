@@ -1,8 +1,6 @@
-/* Firebase Web App configuration for GROVA WEBSITE.
- * These values identify the public web app; they are not server credentials.
- * Firestore Rules remain deny-all until a secure lead submission flow is approved.
- */
-window.GROVA_FIREBASE_CONFIG = Object.freeze({
+// Firebase Web App config for GROVA WEBSITE.
+// Public client configuration only; never place service-account credentials here.
+export const firebaseConfig = Object.freeze({
   apiKey: "AIzaSyA_gL5jHUlg4yFhQd-wHT2Gvy8bko13q5U",
   authDomain: "grova-website.firebaseapp.com",
   projectId: "grova-website",
