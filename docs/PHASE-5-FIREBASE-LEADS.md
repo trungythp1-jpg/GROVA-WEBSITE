@@ -21,10 +21,12 @@
 3. Xác định cấu trúc collection riêng cho lead, ví dụ `website_leads`, sau khi kiểm tra không xung đột với dữ liệu hiện hữu.
 4. Thiết kế quy tắc Firestore tối thiểu quyền. Không dùng rule kiểu `allow read, write: if true`; người truy cập website không được đọc danh sách lead hoặc sửa/xóa lead.
 5. Trước khi mở ghi công khai, phải có biện pháp giảm spam/abuse và giới hạn dữ liệu. Firebase client config không phải mật khẩu nhưng vẫn cần xác minh đúng project và cấu hình domain/App Check phù hợp.
-6. Chỉ cấp quyền đọc danh sách lead cho người quản trị đã xác thực. Không nhúng service-account key, private key hay mật khẩu vào JavaScript/GitHub Pages.
-7. Hiển thị thông báo quyền riêng tư và mục đích sử dụng dữ liệu ngay cạnh biểu mẫu trước khi thu thập dữ liệu cá nhân.
-8. Kiểm tra gửi thành công/thất bại, chống gửi trùng, giới hạn tần suất, xác thực dữ liệu và kiểm tra quyền bằng tài khoản không phải admin.
-9. Sau khi xác nhận URL Zalo chính thức, gắn link vào các nút liên hệ và kiểm tra mở tốt trên iOS/iPadOS.
+6. Vì website chạy tĩnh trên GitHub Pages, không có server riêng để giữ bí mật. Cần đánh giá Firebase App Check cho Web (reCAPTCHA v3 hoặc nhà cung cấp phù hợp), đăng ký đúng domain GitHub Pages và kiểm tra chi phí/khả năng sử dụng trên gói Spark trước khi buộc token cho Firestore.
+7. Nếu không thể triển khai biện pháp chống lạm dụng phù hợp trên gói miễn phí, giữ form vô hiệu hóa và dùng kênh gọi điện/Zalo đã xác minh thay vì mở ghi công khai.
+8. Chuẩn bị thông báo quyền riêng tư và consent trước khi thu thập dữ liệu cá nhân.
+9. Chỉ cấp quyền đọc danh sách lead cho người quản trị đã xác thực. Không nhúng service-account key, private key hay mật khẩu vào JavaScript/GitHub Pages.
+10. Kiểm tra gửi thành công/thất bại, chống gửi trùng, giới hạn tần suất, xác thực dữ liệu và kiểm tra quyền bằng tài khoản không phải admin.
+11. Sau khi xác nhận URL Zalo chính thức, gắn link vào các nút liên hệ và kiểm tra mở tốt trên iOS/iPadOS.
 
 ## Lưu ý kiến trúc
 GitHub Pages chỉ phục vụ frontend tĩnh; không được xem mã JavaScript phía trình duyệt là nơi bảo vệ bí mật. Không bật biểu mẫu chỉ bằng cách thêm Firebase config vào trang. Cần xác minh project, quy tắc truy cập và cách ghi dữ liệu an toàn trước. Ưu tiên không thay đổi gói Firebase hiện tại nếu chưa được chủ website đồng ý.
@@ -37,3 +39,9 @@ GitHub Pages chỉ phục vụ frontend tĩnh; không được xem mã JavaScrip
 - [ ] Form gửi/nhận lỗi đã được kiểm thử mà không làm lộ danh sách khách.
 - [ ] URL Zalo chính thức được cung cấp và kiểm tra.
 - [ ] Sau khi hoàn tất các điều kiện trên mới bật form.
+
+
+## Cập nhật sau khi nhận Firebase Web config
+- Đã thêm `firebase-config.js` và nạp file từ `index.html`; chưa khởi tạo SDK hay ghi Firestore.
+- Form vẫn vô hiệu hóa, có thông báo rõ rằng dữ liệu chưa được gửi/lưu và lưu ý quyền riêng tư trước khi kích hoạt.
+- Không mở quyền Firestore trong Console. Chưa có App Check provider/site key, URL Zalo chính thức hoặc xác nhận billing plan từ màn hình Billing; do đó chưa an toàn để bật nhận lead công khai.
