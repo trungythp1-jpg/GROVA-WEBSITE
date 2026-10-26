@@ -47,18 +47,8 @@
       });
     });
 
-    gsap.from(".cards article", {
-      y: 32,
-      autoAlpha: 0,
-      duration: 0.65,
-      stagger: 0.12,
-      ease: "power2.out",
-      scrollTrigger: {
-        trigger: ".cards",
-        start: "top 82%",
-        once: true
-      }
-    });
+    // Ecosystem cards stay visible by default; CSS provides the safe baseline.
+    // Avoid ScrollTrigger opacity states that can leave cards faded after tab restore on iPad.
 
     gsap.from(".architecture div", {
       scaleY: 0.2,
