@@ -22,3 +22,14 @@ body .sub-hero .sub-btn.secondary{color:#07518b !important;background:#fff !impo
   body .sub-hero{padding:64px 22px 58px !important}
   body .sub-hero h1{font-size:clamp(34px,9vw,48px);letter-spacing:-1px}
 }
+
+/* Phase 3 content components */
+.material-swatch{height:118px;border-radius:6px;margin-bottom:18px;border:1px solid #dce7ec;overflow:hidden;position:relative}
+.swatch-modern{background:linear-gradient(120deg,#b7c1c7 0 16%,#edf0f1 16% 48%,#778792 48% 53%,#dce3e5 53% 100%)}
+.swatch-luxe{background:linear-gradient(120deg,#b7a080 0 20%,#f4e8d4 20% 46%,#b08b56 46% 50%,#e8d7bb 50% 80%,#f8f1e6 80%)}
+.swatch-natural{background:repeating-linear-gradient(90deg,#a67b50 0 9px,#c49b6c 9px 12px,#e2c8a3 12px 18px)}
+.sub-process{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:28px 0}
+.sub-process>div{display:flex;flex-direction:column;gap:8px;padding:18px;border:1px solid var(--line);border-radius:7px;background:#fff}
+.sub-process b{color:var(--green);font-size:12px}
+.sub-process span{font-size:12px;font-weight:700;color:var(--ink)}
+@media(max-width:700px){.sub-process{grid-template-columns:repeat(2,minmax(0,1fr))}.material-swatch{height:96px}}
