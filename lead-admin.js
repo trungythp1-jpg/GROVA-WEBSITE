@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const loginPanel = document.getElementById("admin-login-panel");
@@ -52,12 +52,14 @@ const renderLeads = () => {
   });
   countLabel.textContent = filtered.length + " khách hàng";
   if (!filtered.length) {
-    leadsBody.innerHTML = '<tr><td colspan="5">Không có dữ liệu phù hợp.</td></tr>';
+    leadsBody.innerHTML = '<tr><td colspan="9">Không có dữ liệu phù hợp.</td></tr>';
     mobileLeads.innerHTML = '<p class="admin-empty">Không có dữ liệu phù hợp.</p>';
     return;
   }
-  leadsBody.innerHTML = filtered.map(lead => `<tr><td>${safeText(formatDate(lead.createdAt))}</td><td>${safeText(lead.name)}</td><td><a href="tel:${safeText(lead.phone)}">${safeText(lead.phone)}</a></td><td>${safeText(lead.email || "—")}</td><td>${safeText(lead.need)}</td></tr>`).join("");
-  mobileLeads.innerHTML = filtered.map(lead => `<article class="admin-lead-card"><small>${safeText(formatDate(lead.createdAt))}</small><h3>${safeText(lead.name)}</h3><p><b>Điện thoại:</b> <a href="tel:${safeText(lead.phone)}">${safeText(lead.phone)}</a></p><p><b>Email:</b> ${safeText(lead.email || "—")}</p><p><b>Nhu cầu:</b> ${safeText(lead.need)}</p></article>`).join("");
+  const statuses = ["Mới", "Đã liên hệ", "Đang tư vấn", "Đã chốt", "Không tiếp tục"];
+  const options = selected => statuses.map(status => '<option' + (status === selected ? ' selected' : '') + '>' + safeText(status) + '</option>').join("");
+  leadsBody.innerHTML = filtered.map(lead => '<tr data-lead-id="' + safeText(lead.id) + '"><td>' + safeText(formatDate(lead.createdAt)) + '</td><td>' + safeText(lead.name) + '</td><td><a href="tel:' + safeText(lead.phone) + '">' + safeText(lead.phone) + '</a></td><td>' + safeText(lead.email || "—") + '</td><td>' + safeText(lead.need) + '</td><td><select class="lead-status-select">' + options(lead.status || "Mới") + '</select></td><td><textarea class="lead-note-input" maxlength="1000">' + safeText(lead.note || "") + '</textarea></td><td><input class="lead-followup-input" type="date" value="' + safeText(lead.followUpDate || "") + '"></td><td><button type="button" class="btn secondary lead-save" data-id="' + safeText(lead.id) + '">Lưu</button><span class="lead-row-status" role="status"></span></td></tr>').join("");
+  mobileLeads.innerHTML = filtered.map(lead => '<article class="admin-lead-card" data-mobile-id="' + safeText(lead.id) + '"><small>' + safeText(formatDate(lead.createdAt)) + '</small><h3>' + safeText(lead.name) + '</h3><p><b>Điện thoại:</b> <a href="tel:' + safeText(lead.phone) + '">' + safeText(lead.phone) + '</a></p><p><b>Email:</b> ' + safeText(lead.email || "—") + '</p><p><b>Nhu cầu:</b> ' + safeText(lead.need) + '</p><label>Trạng thái<select class="lead-status-select">' + options(lead.status || "Mới") + '</select></label><label>Ghi chú<textarea class="lead-note-input" maxlength="1000">' + safeText(lead.note || "") + '</textarea></label><label>Ngày liên hệ tiếp<input class="lead-followup-input" type="date" value="' + safeText(lead.followUpDate || "") + '"></label><button type="button" class="btn secondary lead-save" data-id="' + safeText(lead.id) + '">Lưu cập nhật</button><span class="lead-row-status" role="status"></span></article>').join("");
 };
 
 const loadLeads = async () => {
@@ -97,6 +99,33 @@ loginForm.addEventListener("submit", async event => {
   }
 });
 
+const saveLead = async button => {
+  const id = button.dataset.id;
+  const row = button.closest("[data-lead-id]") || button.closest("[data-mobile-id]");
+  if (!row) return;
+  const statusLabel = row.querySelector(".lead-row-status");
+  button.disabled = true;
+  statusLabel.textContent = "Đang lưu…";
+  try {
+    const status = row.querySelector(".lead-status-select").value;
+    const note = row.querySelector(".lead-note-input").value.trim();
+    const followUpDate = row.querySelector(".lead-followup-input").value;
+    await updateDoc(doc(db, "website_leads", id), { status, note, followUpDate, updatedAt: serverTimestamp() });
+    const lead = allLeads.find(item => item.id === id);
+    if (lead) Object.assign(lead, { status, note, followUpDate });
+    statusLabel.textContent = "Đã lưu";
+    statusLabel.className = "lead-row-status success";
+  } catch (error) {
+    statusLabel.textContent = error?.code === "permission-denied" ? "Cần Publish Rules mới" : "Lỗi lưu";
+    statusLabel.className = "lead-row-status error";
+  } finally {
+    button.disabled = false;
+  }
+};
+document.addEventListener("click", event => {
+  const button = event.target.closest(".lead-save");
+  if (button) saveLead(button);
+});
 document.getElementById("admin-logout").addEventListener("click", () => signOut(auth));
 document.getElementById("admin-refresh").addEventListener("click", loadLeads);
 searchInput.addEventListener("input", renderLeads);
@@ -110,7 +139,7 @@ onAuthStateChanged(auth, async user => {
     await loadLeads();
   } else {
     allLeads = [];
-    leadsBody.innerHTML = '<tr><td colspan="5">Đăng nhập để xem danh sách.</td></tr>';
+    leadsBody.innerHTML = '<tr><td colspan="9">Đăng nhập để xem danh sách.</td></tr>';
     mobileLeads.innerHTML = "";
     countLabel.textContent = "";
   }
