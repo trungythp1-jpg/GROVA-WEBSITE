@@ -59,3 +59,11 @@ GitHub Pages chỉ phục vụ frontend tĩnh; không được xem mã JavaScrip
 - App Check remains unregistered; no provider key was created. This follows the owner's request to skip anti-spam. Public creation may still be abused.
 - Firestore Rules in the repository are not automatically published to Firebase Console. They must be reviewed and pasted/published manually before the form can save leads.
 - No Zalo URL has been invented. The official Zalo link remains pending.
+
+
+## Quản lý lead nội bộ
+- Trang quản trị: `lead-admin.html`; JavaScript: `lead-admin.js`.
+- Đăng nhập dùng Firebase Authentication Email/Password. Tài khoản phải được tạo trong Firebase Console; không tạo email hoặc thông tin xác thực thay người quản trị.
+- Firestore Rules hiện dùng placeholder `ADMIN_UID_TO_CONFIGURE`. Thay bằng UID thực tế của tài khoản quản trị trước khi Publish Rules. Nếu chưa thay, không tài khoản nào có thể đọc danh sách lead.
+- Quyền đọc/tra cứu chỉ cấp cho UID được cấu hình; khách công khai không thể đọc danh sách. Không cho phép sửa hoặc xóa lead qua website.
+- Sau khi tạo tài khoản, lấy UID từ Firebase Authentication → Users, cập nhật rule, Publish, rồi kiểm thử trang quản trị.
