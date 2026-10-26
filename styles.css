@@ -40,3 +40,18 @@
 .contact-card a[href^="tel:"]{color:inherit;text-decoration:underline;text-underline-offset:3px}
 @media(max-width:950px){.orb{width:32vw;right:3%}.orb-inner{width:62%;padding:14px}}
 @media(max-width:680px){.orb{width:180px;right:-40px;bottom:45px}.orb-inner{padding:12px}.orb-inner small{font-size:6px}.foot-top{align-items:flex-start}.foot-top>a:not(.brand){padding:8px 0}}
+
+/* Phase 4: accessibility and responsive interaction safeguards */
+:focus-visible{outline:3px solid #0878c8;outline-offset:4px;border-radius:3px}
+a,button{touch-action:manipulation}
+button{font:inherit}
+@media(max-width:680px){
+  #menu{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+  #nav a{min-height:44px;display:flex;align-items:center}
+  .actions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  .cards article{overflow-wrap:anywhere}
+}
+@media(min-width:681px){#menu{display:none}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
