@@ -28,3 +28,26 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Smoke-test published sitemap endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://trungythp1-jpg.github.io/GROVA-WEBSITE"
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --location "$base/sitemap.xml" -o /tmp/sitemap.xml; then
+              break
+            fi
+            echo "Sitemap not ready yet (attempt $attempt/12); waiting 10 seconds"
+            sleep 10
+          done
+          echo "=== Public sitemap.xml response headers ==="
+          curl --silent --show-error --location --head "$base/sitemap.xml"
+          echo "=== Public sitemap.xml body ==="
+          head -n 20 /tmp/sitemap.xml
+          grep -q '<urlset' /tmp/sitemap.xml
+          grep -q '<loc>https://trungythp1-jpg.github.io/GROVA-WEBSITE/' /tmp/sitemap.xml
+          curl --fail --silent --show-error --location "$base/sitemap.txt" -o /tmp/sitemap.txt
+          grep -q '^https://trungythp1-jpg.github.io/GROVA-WEBSITE/$' /tmp/sitemap.txt
+          curl --fail --silent --show-error --location "$base/robots.txt" -o /tmp/robots.txt
+          grep -q 'Sitemap: https://trungythp1-jpg.github.io/GROVA-WEBSITE/sitemap.xml' /tmp/robots.txt
+          echo "PASS: public XML sitemap, text sitemap, and robots.txt match expected contents."
