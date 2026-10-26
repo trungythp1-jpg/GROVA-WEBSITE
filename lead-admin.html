@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#07518b">
+<title>Quản lý khách hàng — GROVA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="lead-admin-page">
+<header class="header">
+<a class="brand" href="index.html"><img class="brand-logo" src="assets/grova_logo.png" alt="GROVA HOLDINGS"></a>
+<a class="btn secondary" href="index.html">Về website</a>
+</header>
+<main class="lead-admin wrap">
+<section class="lead-admin-heading">
+<p class="eyebrow">GROVA HOLDINGS / INTERNAL</p>
+<h1>Quản lý khách hàng</h1>
+<p class="muted">Danh sách nhu cầu tư vấn gửi từ website GROVA.</p>
+</section>
+<section id="admin-login-panel" class="admin-panel">
+<h2>Đăng nhập quản trị</h2>
+<p>Chỉ tài khoản được cấp quyền quản trị mới xem được dữ liệu khách hàng.</p>
+<form id="admin-login-form" class="admin-login-form">
+<label for="admin-email">Email quản trị</label>
+<input id="admin-email" type="email" autocomplete="username" required maxlength="254">
+<label for="admin-password">Mật khẩu</label>
+<input id="admin-password" type="password" autocomplete="current-password" required>
+<p id="admin-login-status" class="lead-status" role="status" aria-live="polite"></p>
+<button id="admin-login-submit" class="btn primary" type="submit">Đăng nhập</button>
+</form>
+</section>
+<section id="admin-leads-panel" class="admin-panel" hidden>
+<div class="admin-toolbar">
+<div><h2>Khách hàng tiềm năng</h2><p id="admin-count" class="muted">Đang tải danh sách…</p></div>
+<div class="admin-toolbar-actions"><button id="admin-refresh" class="btn secondary" type="button">Tải lại</button><button id="admin-logout" class="btn primary" type="button">Đăng xuất</button></div>
+</div>
+<div class="admin-filters">
+<label for="admin-search">Tìm kiếm</label>
+<input id="admin-search" type="search" placeholder="Tên, số điện thoại, email hoặc nhu cầu">
+<label for="admin-need-filter">Lĩnh vực</label>
+<select id="admin-need-filter"><option value="">Tất cả lĩnh vực</option><option>GROVA ELEVATOR</option><option>GROVA ELEVATOR INTERIORS</option><option>GROVA LAW</option><option>GROVA EDUCATION</option><option>Hợp tác khác</option></select>
+</div>
+<p id="admin-data-status" class="lead-status" role="status" aria-live="polite"></p>
+<div class="admin-table-wrap">
+<table class="admin-table">
+<thead><tr><th>Thời gian</th><th>Khách hàng</th><th>Điện thoại</th><th>Email</th><th>Nhu cầu</th></tr></thead>
+<tbody id="admin-leads-body"><tr><td colspan="5">Chưa tải dữ liệu.</td></tr></tbody>
+</table>
+</div>
+<div id="admin-mobile-leads" class="admin-mobile-leads"></div>
+</section>
+</main>
+<script type="module" src="lead-admin.js"></script>
+</body>
+</html>
