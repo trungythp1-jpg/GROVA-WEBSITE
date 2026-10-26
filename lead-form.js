@@ -22,7 +22,7 @@ if (form) {
       if (sending || !form.reportValidity()) return;
 
       const name = document.getElementById("lead-name").value.trim();
-      const phone = document.getElementById("lead-phone").value.trim().replace(/[\\s().-]/g, "");
+      const phone = document.getElementById("lead-phone").value.trim().replace(/[\s().-]/g, "");
       const email = document.getElementById("lead-email").value.trim().toLowerCase();
       const need = document.getElementById("lead-need").value;
       const consent = document.getElementById("lead-consent").checked;
@@ -35,7 +35,7 @@ if (form) {
         setStatus("Vui lòng kiểm tra số điện thoại Việt Nam (bắt đầu bằng 0, gồm 10–11 chữ số).", "error");
         return;
       }
-      if (email && (email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))) {
+      if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
         setStatus("Vui lòng kiểm tra địa chỉ email.", "error");
         return;
       }
