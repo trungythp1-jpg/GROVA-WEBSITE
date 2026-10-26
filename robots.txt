@@ -4,4 +4,4 @@ Disallow: /lead-admin.html
 Disallow: /lead-admin.js
 Disallow: /firebase-config.js
 
-Sitemap: https://trungythp1-jpg.github.io/GROVA-WEBSITE/sitemap.xml
+Sitemap: https://trungythp1-jpg.github.io/GROVA-WEBSITE/sitemap.txt
