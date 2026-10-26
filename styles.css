@@ -55,3 +55,10 @@ button{font:inherit}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
+
+/* Phase 5 business contact actions */
+.contact-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 8px}
+.contact-actions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+.contact-outline{border:1px solid #ffffff70;color:#fff;background:transparent}
+.contact-outline:hover{background:#ffffff16}
+@media(max-width:680px){.contact-actions{align-items:stretch;flex-direction:column}.contact-actions .btn{width:100%}}
