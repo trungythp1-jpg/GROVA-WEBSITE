@@ -29,7 +29,8 @@ service cloud.firestore {
         request.resource.data.source == 'grova-website' &&
         request.resource.data.createdAt == request.time;
 
-      allow get, list, update, delete: if false;
+      allow get, list: if request.auth != null && request.auth.uid == 'ADMIN_UID_TO_CONFIGURE';
+      allow update, delete: if false;
     }
   }
 }
