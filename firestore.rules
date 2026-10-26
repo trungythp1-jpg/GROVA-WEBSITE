@@ -1,9 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Public website visitors may create a narrowly validated lead only.
-    // They cannot read, update, or delete leads. Public creation can still be abused;
-    // this intentionally omits App Check/spam controls per the site owner's decision.
     match /website_leads/{leadId} {
       allow create: if
         request.resource.data.keys().hasAll([
