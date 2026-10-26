@@ -63,17 +63,22 @@ const renderLeads = () => {
 const loadLeads = async () => {
   setDataStatus("Đang tải danh sách khách hàng…");
   try {
-    const result = await getDocs(query(collection(db, "website_leads"), orderBy("createdAt", "desc")));
+    const result = await Promise.race([
+      getDocs(query(collection(db, "website_leads"), orderBy("createdAt", "desc"))),
+      new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error("Request timed out"), { code: "grova/timeout" })), 12000))
+    ]);
     allLeads = result.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     renderLeads();
-    setDataStatus("", "");
+    setDataStatus(allLeads.length ? "" : "Chưa có khách hàng nào được lưu trong Firestore.", allLeads.length ? "" : "");
   } catch (error) {
     allLeads = [];
     renderLeads();
     if (error?.code === "permission-denied" || error?.code === "firestore/permission-denied") {
-      setDataStatus("Tài khoản hiện chưa có quyền xem danh sách. Kiểm tra Firebase Auth và quyền UID quản trị trong Firestore Rules.", "error");
+      setDataStatus("Tài khoản chưa có quyền đọc. Hãy Publish Firestore Rules mới và kiểm tra UID đăng nhập.", "error");
+    } else if (error?.code === "grova/timeout") {
+      setDataStatus("Firestore không phản hồi sau 12 giây. Kiểm tra mạng, project Firebase và Rules đã Publish.", "error");
     } else {
-      setDataStatus("Không tải được dữ liệu. Kiểm tra kết nối và cấu hình Firebase.", "error");
+      setDataStatus("Không tải được dữ liệu (" + (error?.code || "lỗi không xác định") + "). Kiểm tra kết nối, Firebase Authentication và Firestore Rules.", "error");
     }
   }
 };
