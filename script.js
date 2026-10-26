@@ -11,6 +11,7 @@
     nav.querySelectorAll("a").forEach(link => link.addEventListener("click", () => {
       nav.classList.remove("open");
       button.setAttribute("aria-expanded", "false");
+      button.setAttribute("aria-label", "Mở menu");
     }));
   }
 
