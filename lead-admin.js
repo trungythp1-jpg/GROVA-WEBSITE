@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -19,6 +19,7 @@ let allLeads = [];
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const persistenceReady = setPersistence(auth, browserLocalPersistence);
 
 const safeText = value => String(value ?? "").replace(/[&<>"']/g, char => ({
   "&": "&amp;",
@@ -91,6 +92,7 @@ loginForm.addEventListener("submit", async event => {
   loginStatus.textContent = "Đang đăng nhập…";
   loginStatus.className = "lead-status";
   try {
+    await persistenceReady;
     await signInWithEmailAndPassword(auth, document.getElementById("admin-email").value.trim(), document.getElementById("admin-password").value);
   } catch (error) {
     setLoginStatus(error?.code === "auth/invalid-credential" ? "Email hoặc mật khẩu không đúng." : "Không đăng nhập được. Kiểm tra Firebase Authentication đã bật Email/Password và tài khoản quản trị đã được tạo.");
@@ -126,7 +128,20 @@ document.addEventListener("click", event => {
   const button = event.target.closest(".lead-save");
   if (button) saveLead(button);
 });
-document.getElementById("admin-logout").addEventListener("click", () => signOut(auth));
+document.getElementById("admin-logout").addEventListener("click", async () => {
+  const button = document.getElementById("admin-logout");
+  button.disabled = true;
+  try {
+    await signOut(auth);
+    document.getElementById("admin-password").value = "";
+    document.getElementById("admin-email").value = "";
+    setLoginStatus("Đã đăng xuất khỏi tài khoản quản trị.");
+  } catch {
+    setDataStatus("Chưa đăng xuất được. Vui lòng thử lại.", "error");
+  } finally {
+    button.disabled = false;
+  }
+});
 document.getElementById("admin-refresh").addEventListener("click", loadLeads);
 searchInput.addEventListener("input", renderLeads);
 needFilter.addEventListener("change", renderLeads);
