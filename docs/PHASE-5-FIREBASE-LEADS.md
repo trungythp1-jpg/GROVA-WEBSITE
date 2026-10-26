@@ -15,15 +15,20 @@
 - Số điện thoại công khai đã được chủ website xác nhận trước đó vẫn có thể gọi trực tiếp.
 - Chưa có nút/link Zalo vì chưa được cung cấp URL OA/tài khoản chính thức.
 
-## Việc cần làm trước khi kích hoạt
+## Quyết định cập nhật của chủ website
+- Chủ website đồng ý bỏ qua bước chống spam/App Check để tiếp tục triển khai.
+- Chấp nhận rủi ro còn lại: endpoint tạo lead công khai có thể bị lạm dụng hoặc ghi dữ liệu rác. Đã không đăng ký App Check provider và không bật Enforcement.
+- Rules được giới hạn chỉ cho phép tạo lead theo schema/validation; không cho đọc, liệt kê, sửa hoặc xóa lead công khai.
+
+## Việc còn cần làm trong Firebase Console
 1. Trong Firebase Console, xác nhận project ID chính xác. Tên hiển thị `GROVA-WEBSITE` không nhất thiết là Project ID; không đoán ID.
 2. Kiểm tra Firestore đã bật hay chưa, khu vực dữ liệu, quota/gói thanh toán và liệu project có dữ liệu ứng dụng khác. Không thay đổi billing plan và không xóa/ghi đè dữ liệu hiện có.
 3. Xác định cấu trúc collection riêng cho lead, ví dụ `website_leads`, sau khi kiểm tra không xung đột với dữ liệu hiện hữu.
 4. Thiết kế quy tắc Firestore tối thiểu quyền. Không dùng rule kiểu `allow read, write: if true`; người truy cập website không được đọc danh sách lead hoặc sửa/xóa lead.
-5. Trước khi mở ghi công khai, phải có biện pháp giảm spam/abuse và giới hạn dữ liệu. Firebase client config không phải mật khẩu nhưng vẫn cần xác minh đúng project và cấu hình domain/App Check phù hợp.
-6. Vì website chạy tĩnh trên GitHub Pages, không có server riêng để giữ bí mật. Cần đánh giá Firebase App Check cho Web (reCAPTCHA v3 hoặc nhà cung cấp phù hợp), đăng ký đúng domain GitHub Pages và kiểm tra chi phí/khả năng sử dụng trên gói Spark trước khi buộc token cho Firestore.
-7. Nếu không thể triển khai biện pháp chống lạm dụng phù hợp trên gói miễn phí, giữ form vô hiệu hóa và dùng kênh gọi điện/Zalo đã xác minh thay vì mở ghi công khai.
-8. Chuẩn bị thông báo quyền riêng tư và consent trước khi thu thập dữ liệu cá nhân.
+5. (Đã được chủ website miễn yêu cầu) Bỏ qua App Check/chống spam. Chấp nhận nguy cơ spam; Rules vẫn phải giới hạn schema và chặn đọc/sửa/xóa.
+6. Đã thêm form client-side dùng Firebase Web SDK và collection `website_leads`.
+7. Đã thêm `firestore.rules`: cho phép `create` theo trường dữ liệu hợp lệ; chặn `get`, `list`, `update`, `delete`. Chủ website chấp nhận rủi ro spam khi bỏ qua App Check.
+8. Trước khi form gửi thành công, phải publish Rules trong Firebase Console và kiểm thử. Chưa có quyền admin console từ GitHub để publish Rules tự động.
 9. Chỉ cấp quyền đọc danh sách lead cho người quản trị đã xác thực. Không nhúng service-account key, private key hay mật khẩu vào JavaScript/GitHub Pages.
 10. Kiểm tra gửi thành công/thất bại, chống gửi trùng, giới hạn tần suất, xác thực dữ liệu và kiểm tra quyền bằng tài khoản không phải admin.
 11. Sau khi xác nhận URL Zalo chính thức, gắn link vào các nút liên hệ và kiểm tra mở tốt trên iOS/iPadOS.
@@ -32,16 +37,25 @@
 GitHub Pages chỉ phục vụ frontend tĩnh; không được xem mã JavaScript phía trình duyệt là nơi bảo vệ bí mật. Không bật biểu mẫu chỉ bằng cách thêm Firebase config vào trang. Cần xác minh project, quy tắc truy cập và cách ghi dữ liệu an toàn trước. Ưu tiên không thay đổi gói Firebase hiện tại nếu chưa được chủ website đồng ý.
 
 ## Điều kiện hoàn tất Phase 5
-- [ ] Firebase Project ID chính xác được xác nhận từ Firebase Console.
-- [ ] Firestore rules được rà soát và kiểm thử.
-- [ ] Quyền admin được xác định và kiểm thử.
-- [ ] Có thông báo quyền riêng tư trước khi thu thập dữ liệu.
-- [ ] Form gửi/nhận lỗi đã được kiểm thử mà không làm lộ danh sách khách.
+- [x] Firebase Project ID chính xác được xác nhận từ Firebase Console.
+- [x] Form frontend và consent đã được triển khai trong mã nguồn.
+- [x] Rules giới hạn tạo lead, chặn đọc/sửa/xóa công khai đã được tạo trong repository.
+- [ ] Chủ website cần dán/publish Rules trong Firebase Console.
+- [ ] Kiểm thử gửi lead sau khi publish Rules.
 - [ ] URL Zalo chính thức được cung cấp và kiểm tra.
-- [ ] Sau khi hoàn tất các điều kiện trên mới bật form.
 
 
 ## Cập nhật sau khi nhận Firebase Web config
 - Đã thêm `firebase-config.js` và nạp file từ `index.html`; chưa khởi tạo SDK hay ghi Firestore.
 - Form vẫn vô hiệu hóa, có thông báo rõ rằng dữ liệu chưa được gửi/lưu và lưu ý quyền riêng tư trước khi kích hoạt.
 - Không mở quyền Firestore trong Console. Chưa có App Check provider/site key, URL Zalo chính thức hoặc xác nhận billing plan từ màn hình Billing; do đó chưa an toàn để bật nhận lead công khai.
+
+
+## Implementation status (2026-10-27)
+- `firebase-config.js` exports the confirmed web app config for the modular Firebase SDK.
+- `lead-form.js` submits validated, consented leads to `website_leads` with a server timestamp.
+- Form fields validate name, Vietnamese phone number, optional email, and allowed interest values client-side; Firestore Rules enforce the same core constraints.
+- Public visitors cannot read/list/update/delete lead documents under the supplied rules. Admin review/export has not been implemented; do not use the public website to view lead lists.
+- App Check remains unregistered; no provider key was created. This follows the owner's request to skip anti-spam. Public creation may still be abused.
+- Firestore Rules in the repository are not automatically published to Firebase Console. They must be reviewed and pasted/published manually before the form can save leads.
+- No Zalo URL has been invented. The official Zalo link remains pending.
