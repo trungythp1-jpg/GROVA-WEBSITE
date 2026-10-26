@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Public website visitors may create a narrowly validated lead only.
+    // They cannot read, update, or delete leads. Public creation can still be abused;
+    // this intentionally omits App Check/spam controls per the site owner's decision.
+    match /website_leads/{leadId} {
+      allow create: if
+        request.resource.data.keys().hasAll([
+          'name', 'phone', 'email', 'need', 'consent', 'source', 'createdAt'
+        ]) &&
+        request.resource.data.keys().hasOnly([
+          'name', 'phone', 'email', 'need', 'consent', 'source', 'createdAt'
+        ]) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 2 &&
+        request.resource.data.name.size() <= 100 &&
+        request.resource.data.phone is string &&
+        request.resource.data.phone.matches('^0[0-9]{9,10}$') &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() <= 254 &&
+        (request.resource.data.email == '' ||
+          request.resource.data.email.matches('^[^ @]+@[^ @]+[.][^ @]+$')) &&
+        request.resource.data.need in [
+          'GROVA ELEVATOR',
+          'GROVA ELEVATOR INTERIORS',
+          'GROVA LAW',
+          'GROVA EDUCATION',
+          'Hợp tác khác'
+        ] &&
+        request.resource.data.consent == true &&
+        request.resource.data.source == 'grova-website' &&
+        request.resource.data.createdAt == request.time;
+
+      allow get, list, update, delete: if false;
+    }
+  }
+}
