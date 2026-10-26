@@ -121,3 +121,5 @@ button{font:inherit}
 .lead-row-status{display:block;font-size:10px;margin-top:5px}
 .lead-row-status.success{color:#176d38}
 .lead-row-status.error{color:#a62828}
+
+.admin-login-hint{padding:10px 12px;border-left:3px solid #168b35;background:#f2f8f3;color:#526c5b;font-size:12px!important;line-height:1.7}
