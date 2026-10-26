@@ -18,7 +18,6 @@
   const year = document.getElementById("year");
   if (year) year.textContent = new Date().getFullYear();
 
-  // Progressive enhancement: the site remains readable if GSAP/CDN is unavailable.
   if (!window.gsap || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
   const gsap = window.gsap;
@@ -48,9 +47,6 @@
       });
     });
 
-    // Ecosystem cards stay visible by default; CSS provides the safe baseline.
-    // Avoid ScrollTrigger opacity states that can leave cards faded after tab restore on iPad.
-
     gsap.from(".architecture div", {
       scaleY: 0.2,
       transformOrigin: "bottom",
@@ -65,7 +61,6 @@
     });
   }
 
-  // Gentle hover response on desktop only; avoids competing with touch scrolling.
   if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
     document.querySelectorAll(".cards article").forEach((card) => {
       card.addEventListener("mouseenter", () => gsap.to(card, { y: -5, duration: 0.22, overwrite: true }));
