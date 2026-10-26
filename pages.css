@@ -33,3 +33,20 @@ body .sub-hero .sub-btn.secondary{color:#07518b !important;background:#fff !impo
 .sub-process b{color:var(--green);font-size:12px}
 .sub-process span{font-size:12px;font-weight:700;color:var(--ink)}
 @media(max-width:700px){.sub-process{grid-template-columns:repeat(2,minmax(0,1fr))}.material-swatch{height:96px}}
+
+/* Phase 4: keyboard access, mobile tap targets, contrast and responsive layout */
+.sub-header a:focus-visible,.sub-btn:focus-visible{outline:3px solid #168b35;outline-offset:4px}
+.sub-header a,.sub-btn{touch-action:manipulation}
+.sub-header nav a{min-height:44px;display:inline-flex;align-items:center}
+.sub-btn{min-height:44px;align-items:center;justify-content:center}
+.sub-card p,.sub-section>div>p{line-height:1.8}
+@media(max-width:700px){
+  .sub-header{padding:0 16px}
+  .sub-header nav{gap:8px}
+  .sub-header nav a{padding:8px 10px;min-height:44px}
+  .sub-grid{grid-template-columns:1fr}
+  .sub-card{padding:21px}
+  .sub-hero .sub-actions{align-items:stretch}
+  .sub-hero .sub-btn{width:100%;text-align:center}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
