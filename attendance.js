@@ -7,7 +7,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
-const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], sites: [], records: [], employees: [], editingEmployeeId: null };
+const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null };
 const fmtTime = (date) => date ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date) : "--:--";
 const fmtDate = (date) => new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Ho_Chi_Minh" }).format(date);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
@@ -70,13 +70,14 @@ function showView(name) {
     toast("Bạn không có quyền truy cập mục này");
     return;
   }
+  if (name === "tasks") loadTasks().catch(showError);
   if (name === "employees" && state.profile?.role !== "admin") {
     toast("Chỉ Admin được quản lý nhân viên.");
     return;
   }
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === "view-" + name));
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === name));
-  const labels = { today: "CHẤM CÔNG", history: "LỊCH SỬ CÔNG", requests: "YÊU CẦU ĐIỀU CHỈNH", overview: "TỔNG QUAN", sites: "ĐỊA ĐIỂM CHẤM CÔNG", employees: "QUẢN LÝ NHÂN VIÊN" };
+  const labels = { today: "TRANG CHỦ", tasks: "CÔNG VIỆC CỦA TÔI", history: "LỊCH SỬ CÔNG", requests: "YÊU CẦU ĐIỀU CHỈNH", overview: "TỔNG QUAN", sites: "ĐỊA ĐIỂM CHẤM CÔNG", employees: "QUẢN LÝ NHÂN VIÊN" };
   $("page-heading").textContent = labels[name] || "CHẤM CÔNG";
   if (name === "history") renderHistory();
   if (name === "requests") loadRequests().catch(showError);
@@ -307,6 +308,127 @@ function renderEmployees() {
   });
   $("employee-admin-search").dispatchEvent(new Event("input"));
 }
+function taskStatusLabel(status) {
+  return ({ todo: "Mới giao", in_progress: "Đang thực hiện", done: "Hoàn thành" })[status] || "Mới giao";
+}
+function renderTasks() {
+  const list = $("task-list");
+  list.replaceChildren();
+  const filter = $("task-status-filter").value;
+  const visible = state.tasks.filter((task) => filter === "all" || task.status === filter);
+  $("task-total").textContent = String(state.tasks.length);
+  $("task-active").textContent = String(state.tasks.filter((task) => task.status === "in_progress").length);
+  $("task-pending").textContent = String(state.tasks.filter((task) => task.status !== "done").length);
+  if (!visible.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = state.tasks.length ? "Không có công việc phù hợp bộ lọc." : "Chưa có công việc. Khi được giao nhiệm vụ, công việc sẽ hiển thị tại đây.";
+    list.append(empty);
+    return;
+  }
+  visible.forEach((task) => {
+    const card = document.createElement("article");
+    card.className = "task-card";
+    const top = document.createElement("div");
+    top.className = "task-card-top";
+    const titleWrap = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = task.title || "Công việc";
+    const meta = document.createElement("p");
+    meta.className = "muted small";
+    meta.textContent = (task.assigneeName || task.assigneeUid || "Chưa rõ người nhận") + " · Hạn " + (task.dueDate || "Chưa đặt");
+    titleWrap.append(title, meta);
+    const badge = document.createElement("span");
+    badge.className = "task-status task-status-" + (task.status || "todo");
+    badge.textContent = taskStatusLabel(task.status);
+    top.append(titleWrap, badge);
+    const description = document.createElement("p");
+    description.className = "task-description";
+    description.textContent = task.description || "Không có mô tả.";
+    const bottom = document.createElement("div");
+    bottom.className = "task-card-bottom";
+    const priority = document.createElement("span");
+    priority.className = "task-priority task-priority-" + (task.priority || "normal");
+    priority.textContent = ({ normal: "Ưu tiên bình thường", high: "Ưu tiên cao", urgent: "Khẩn cấp" })[task.priority] || "Ưu tiên bình thường";
+    const status = document.createElement("select");
+    status.setAttribute("aria-label", "Cập nhật trạng thái công việc");
+    [["todo","Mới giao"],["in_progress","Đang thực hiện"],["done","Hoàn thành"]].forEach(([value,label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      status.append(option);
+    });
+    status.value = task.status || "todo";
+    status.disabled = task.assigneeUid !== state.user.uid && !["admin","manager"].includes(state.profile?.role);
+    status.addEventListener("change", async () => {
+      status.disabled = true;
+      try {
+        await updateDoc(doc(db, "workspace_tasks", task.id), { status: status.value, updatedAt: serverTimestamp() });
+        task.status = status.value;
+        toast("Đã cập nhật trạng thái công việc.");
+        renderTasks();
+      } catch (error) {
+        status.value = task.status || "todo";
+        showError(error);
+      }
+    });
+    bottom.append(priority, status);
+    card.append(top, description, bottom);
+    list.append(card);
+  });
+}
+async function loadTasks() {
+  const manager = ["admin","manager"].includes(state.profile?.role);
+  $("task-create-panel").style.display = manager ? "" : "none";
+  const taskQuery = manager
+    ? query(collection(db, "workspace_tasks"), orderBy("createdAt", "desc"), limit(200))
+    : query(collection(db, "workspace_tasks"), where("assigneeUid", "==", state.user.uid), limit(200));
+  const snapshot = await getDocs(taskQuery);
+  state.tasks = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a,b) => {
+    const ad = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+    const bd = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+    return bd-ad;
+  });
+  renderTasks();
+}
+$("task-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!["admin","manager"].includes(state.profile?.role)) return;
+  const button = $("task-submit");
+  button.disabled = true;
+  $("task-feedback").textContent = "";
+  try {
+    const assigneeUid = $("task-assignee").value.trim();
+    const assigneeSnapshot = await getDoc(doc(db, "attendance_users", assigneeUid));
+    if (!assigneeSnapshot.exists() || assigneeSnapshot.data().active !== true) throw new Error("Không tìm thấy hồ sơ nhân viên đang hoạt động với UID này.");
+    const profile = assigneeSnapshot.data();
+    await addDoc(collection(db, "workspace_tasks"), {
+      title: $("task-title").value.trim(),
+      description: $("task-description").value.trim(),
+      assigneeUid,
+      assigneeName: profile.displayName || profile.email || assigneeUid,
+      createdBy: state.user.uid,
+      createdByName: state.profile.displayName || state.user.email || "",
+      status: "todo",
+      priority: $("task-priority").value,
+      dueDate: $("task-due").value,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    $("task-form").reset();
+    $("task-priority").value = "normal";
+    $("task-feedback").textContent = "Đã giao công việc.";
+    toast("Đã giao công việc.");
+    await loadTasks();
+  } catch (error) {
+    $("task-feedback").textContent = error.message || "Không thể tạo công việc.";
+    $("task-feedback").className = "feedback error";
+  } finally {
+    button.disabled = false;
+  }
+});
+$("task-status-filter").addEventListener("change", renderTasks);
+$("task-refresh").addEventListener("click", () => loadTasks().catch(showError));
 async function loadSites() {
   const snapshot = await getDocs(query(collection(db, "attendance_sites"), where("active", "==", true)));
   state.sites = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
@@ -522,12 +644,14 @@ onAuthStateChanged(auth, async (user) => {
     document.querySelectorAll("[data-view='employees']").forEach((node) => { node.style.display = state.profile.role === "admin" ? "" : "none"; });
     document.querySelectorAll(".admin-workspace-shortcut").forEach((node) => { node.style.display = admin ? "" : "none"; });
     $("request-create-panel").style.display = admin ? "none" : "";
+    $("task-create-panel").style.display = admin ? "" : "none";
     const title = $("view-today").querySelector("h1");
     title.textContent = "Xin chào, " + (state.profile.displayName || user.displayName || user.email);
     await Promise.all([loadToday(), loadHistory()]);
     renderHistory();
     await loadRequests();
     if (state.profile.role === "admin") await loadEmployees();
+    await loadTasks();
   } catch (error) {
     showError(error);
   }
