@@ -1,13 +1,13 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, runTransaction, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, setDoc, runTransaction, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
-const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], sites: [], records: [] };
+const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], sites: [], records: [], employees: [], editingEmployeeId: null };
 const fmtTime = (date) => date ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date) : "--:--";
 const fmtDate = (date) => new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Ho_Chi_Minh" }).format(date);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
@@ -66,18 +66,19 @@ function renderAttendance() {
   rows.append(row);
 }
 function showView(name) {
-  if (["overview", "sites"].includes(name) && !["admin", "manager"].includes(state.profile?.role)) {
+  if (["overview", "sites", "employees"].includes(name) && !["admin", "manager"].includes(state.profile?.role)) {
     toast("Bạn không có quyền truy cập mục này");
     return;
   }
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === "view-" + name));
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === name));
-  const labels = { today: "CHẤM CÔNG", history: "LỊCH SỬ CÔNG", requests: "YÊU CẦU ĐIỀU CHỈNH", overview: "TỔNG QUAN", sites: "ĐỊA ĐIỂM CHẤM CÔNG" };
+  const labels = { today: "CHẤM CÔNG", history: "LỊCH SỬ CÔNG", requests: "YÊU CẦU ĐIỀU CHỈNH", overview: "TỔNG QUAN", sites: "ĐỊA ĐIỂM CHẤM CÔNG", employees: "QUẢN LÝ NHÂN VIÊN" };
   $("page-heading").textContent = labels[name] || "CHẤM CÔNG";
   if (name === "history") renderHistory();
   if (name === "requests") loadRequests().catch(showError);
   if (name === "sites") loadSites().catch(showError);
   if (name === "overview") loadOverview().catch(showError);
+  if (name === "employees") loadEmployees().catch(showError);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function showError(error) {
@@ -233,6 +234,75 @@ async function loadOverview() {
   });
   $("employee-search").dispatchEvent(new Event("input"));
 }
+function resetEmployeeForm() {
+  state.editingEmployeeId = null;
+  $("employee-form").reset();
+  $("employee-uid").disabled = false;
+  $("employee-active").checked = true;
+  $("employee-role").value = "employee";
+  $("employee-form-title").textContent = "Thêm hồ sơ nhân viên";
+  $("employee-save").textContent = "Lưu hồ sơ";
+  $("employee-feedback").textContent = "";
+}
+async function loadEmployees() {
+  if (state.profile?.role !== "admin") {
+    $("employee-form").style.display = "none";
+    return;
+  }
+  const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
+  state.employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => String(a.displayName || "").localeCompare(String(b.displayName || ""), "vi"));
+  renderEmployees();
+}
+function renderEmployees() {
+  const rows = $("employee-admin-rows");
+  rows.replaceChildren();
+  if (!state.employees.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.textContent = "Chưa có hồ sơ nhân viên.";
+    row.append(cell);
+    rows.append(row);
+    return;
+  }
+  state.employees.forEach((employee) => {
+    const row = document.createElement("tr");
+    const values = [employee.displayName || employee.email || employee.id, employee.department || "Chưa phân bộ phận", employee.role || "employee", employee.active === true ? "Đang hoạt động" : "Đã khóa"];
+    values.forEach((value, index) => {
+      const cell = document.createElement("td");
+      if (index === 3) {
+        const badge = document.createElement("span");
+        badge.className = "table-status" + (employee.active === true ? " good" : "");
+        badge.textContent = value;
+        cell.append(badge);
+      } else cell.textContent = value;
+      row.append(cell);
+    });
+    const actionCell = document.createElement("td");
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "outline-button";
+    edit.textContent = "Sửa";
+    edit.addEventListener("click", () => {
+      state.editingEmployeeId = employee.id;
+      $("employee-uid").value = employee.id;
+      $("employee-uid").disabled = true;
+      $("employee-name").value = employee.displayName || "";
+      $("employee-email").value = employee.email || "";
+      $("employee-department").value = employee.department || "";
+      $("employee-role").value = ["employee", "manager", "admin"].includes(employee.role) ? employee.role : "employee";
+      $("employee-active").checked = employee.active === true;
+      $("employee-form-title").textContent = "Sửa hồ sơ nhân viên";
+      $("employee-save").textContent = "Cập nhật hồ sơ";
+      $("employee-feedback").textContent = "";
+      $("employee-form").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    actionCell.append(edit);
+    row.append(actionCell);
+    rows.append(row);
+  });
+  $("employee-admin-search").dispatchEvent(new Event("input"));
+}
 async function loadSites() {
   const snapshot = await getDocs(query(collection(db, "attendance_sites"), where("active", "==", true)));
   state.sites = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
@@ -362,6 +432,42 @@ $("employee-search").addEventListener("input", (event) => {
   const term = event.target.value.trim().toLocaleLowerCase("vi");
   document.querySelectorAll("#employee-rows tr").forEach((row) => { row.hidden = !row.textContent.toLocaleLowerCase("vi").includes(term); });
 });
+$("employee-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (state.profile?.role !== "admin") { toast("Chỉ Admin được quản lý hồ sơ nhân viên."); return; }
+  const uid = $("employee-uid").value.trim();
+  const displayName = $("employee-name").value.trim();
+  const email = $("employee-email").value.trim();
+  const department = $("employee-department").value.trim();
+  const role = $("employee-role").value;
+  const active = $("employee-active").checked;
+  if (uid.length < 10 || !displayName || !["employee", "manager", "admin"].includes(role)) {
+    $("employee-feedback").textContent = "Kiểm tra UID, họ tên và vai trò.";
+    $("employee-feedback").classList.add("error");
+    return;
+  }
+  try {
+    const ref = doc(db, "attendance_users", uid);
+    const existing = await getDoc(ref);
+    if (!existing.exists() && state.editingEmployeeId) throw new Error("Không tìm thấy hồ sơ cần cập nhật.");
+    await setDoc(ref, { displayName, email, department, role, active }, { merge: true });
+    $("employee-feedback").classList.remove("error");
+    $("employee-feedback").textContent = "Đã lưu hồ sơ nhân viên.";
+    await loadEmployees();
+    await loadOverview();
+    resetEmployeeForm();
+    toast("Đã lưu hồ sơ nhân viên.");
+  } catch (error) {
+    $("employee-feedback").classList.add("error");
+    $("employee-feedback").textContent = error.code === "permission-denied" ? "Không đủ quyền ghi hồ sơ. Kiểm tra Firestore Rules đã triển khai chưa." : (error.message || "Không lưu được hồ sơ.");
+    showError(error);
+  }
+});
+$("employee-cancel").addEventListener("click", resetEmployeeForm);
+$("employee-admin-search").addEventListener("input", (event) => {
+  const term = event.target.value.trim().toLocaleLowerCase("vi");
+  document.querySelectorAll("#employee-admin-rows tr").forEach((row) => { row.hidden = !row.textContent.toLocaleLowerCase("vi").includes(term); });
+});
 $("add-site").addEventListener("click", async () => {
   if (state.profile?.role !== "admin") { toast("Chỉ quản trị viên được thêm địa điểm."); return; }
   const name = window.prompt("Tên địa điểm:");
@@ -412,13 +518,14 @@ onAuthStateChanged(auth, async (user) => {
     login.style.display = "none";
     $("page-heading").textContent = "CHẤM CÔNG";
     const admin = ["admin", "manager"].includes(state.profile.role);
-    document.querySelectorAll(".admin-label, [data-view='overview'], [data-view='sites']").forEach((node) => { node.style.display = admin ? "" : "none"; });
+    document.querySelectorAll(".admin-label, [data-view='overview'], [data-view='sites'], [data-view='employees']").forEach((node) => { node.style.display = admin ? "" : "none"; });
     $("request-create-panel").style.display = admin ? "none" : "";
     const title = $("view-today").querySelector("h1");
     title.textContent = "Xin chào, " + (state.profile.displayName || user.displayName || user.email);
     await Promise.all([loadToday(), loadHistory()]);
     renderHistory();
     await loadRequests();
+    if (state.profile.role === "admin") await loadEmployees();
   } catch (error) {
     showError(error);
   }
