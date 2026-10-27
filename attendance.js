@@ -559,21 +559,11 @@ function renderTasks() {
   });
 }
 async function loadTaskAssignees() {
-  if (!["admin","manager"].includes(state.profile?.role)) return;
+  if (taskRoleLevel(state.profile?.role) < 2) return;
   const select = $("task-assignee");
   const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
   const employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
     .filter((employee) => employee.active === true && taskRoleLevel(state.profile?.role) > taskRoleLevel(employee.role) && employee.id !== state.user?.uid);
-  if (state.profile?.active === true && state.user?.uid && !employees.some((employee) => employee.id === state.user.uid)) {
-    employees.push({
-      id: state.user.uid,
-      displayName: state.profile.displayName || state.user.displayName || state.user.email || state.user.uid,
-      email: state.profile.email || state.user.email || "",
-      department: state.profile.department || "",
-      role: state.profile.role || "employee",
-      active: true
-    });
-  }
   employees.sort((a, b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
   select.replaceChildren();
   select.append(new Option(employees.length ? "Chọn nhân sự nhận việc" : "Chưa có nhân sự đang hoạt động", ""));
@@ -607,9 +597,11 @@ $("task-form").addEventListener("submit", async (event) => {
   try {
     const assigneeUid = $("task-assignee").value;
     if (!assigneeUid) throw new Error("Hãy chọn nhân sự nhận việc.");
+    if (assigneeUid === state.user.uid) throw new Error("Không thể tự giao việc cho chính mình.");
     const assigneeSnapshot = await getDoc(doc(db, "attendance_users", assigneeUid));
     if (!assigneeSnapshot.exists() || assigneeSnapshot.data().active !== true) throw new Error("Không tìm thấy hồ sơ nhân viên đang hoạt động với UID này.");
     const profile = assigneeSnapshot.data();
+    if (taskRoleLevel(state.profile?.role) <= taskRoleLevel(profile.role)) throw new Error("Chỉ được giao việc cho nhân sự có cấp bậc thấp hơn.");
     await addDoc(collection(db, "workspace_tasks"), {
       title: $("task-title").value.trim(),
       description: $("task-description").value.trim(),
