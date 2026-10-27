@@ -560,8 +560,18 @@ async function loadTaskAssignees() {
   const select = $("task-assignee");
   const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
   const employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
-    .filter((employee) => employee.active === true)
-    .sort((a, b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
+    .filter((employee) => employee.active === true);
+  if (state.profile?.active === true && state.user?.uid && !employees.some((employee) => employee.id === state.user.uid)) {
+    employees.push({
+      id: state.user.uid,
+      displayName: state.profile.displayName || state.user.displayName || state.user.email || state.user.uid,
+      email: state.profile.email || state.user.email || "",
+      department: state.profile.department || "",
+      role: state.profile.role || "employee",
+      active: true
+    });
+  }
+  employees.sort((a, b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
   select.replaceChildren();
   select.append(new Option(employees.length ? "Chọn nhân sự nhận việc" : "Chưa có nhân sự đang hoạt động", ""));
   employees.forEach((employee) => {
