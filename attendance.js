@@ -555,9 +555,25 @@ function renderTasks() {
     list.append(card);
   });
 }
+async function loadTaskAssignees() {
+  if (!["admin","manager"].includes(state.profile?.role)) return;
+  const select = $("task-assignee");
+  const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
+  const employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+    .filter((employee) => employee.active === true)
+    .sort((a, b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
+  select.replaceChildren();
+  select.append(new Option(employees.length ? "Chọn nhân sự nhận việc" : "Chưa có nhân sự đang hoạt động", ""));
+  employees.forEach((employee) => {
+    const option = new Option([employee.displayName || employee.email || employee.id, employee.department].filter(Boolean).join(" · "), employee.id);
+    select.append(option);
+  });
+  $("task-assignee-meta").textContent = employees.length + " nhân sự đang hoạt động · Người nhận thấy nhiệm vụ trong mục Công việc của tôi.";
+}
 async function loadTasks() {
   const manager = ["admin","manager"].includes(state.profile?.role);
   $("task-create-panel").style.display = manager ? "" : "none";
+  if (manager) await loadTaskAssignees();
   const taskQuery = manager
     ? query(collection(db, "workspace_tasks"), orderBy("createdAt", "desc"), limit(200))
     : query(collection(db, "workspace_tasks"), where("assigneeUid", "==", state.user.uid), limit(200));
@@ -576,7 +592,8 @@ $("task-form").addEventListener("submit", async (event) => {
   button.disabled = true;
   $("task-feedback").textContent = "";
   try {
-    const assigneeUid = $("task-assignee").value.trim();
+    const assigneeUid = $("task-assignee").value;
+    if (!assigneeUid) throw new Error("Hãy chọn nhân sự nhận việc.");
     const assigneeSnapshot = await getDoc(doc(db, "attendance_users", assigneeUid));
     if (!assigneeSnapshot.exists() || assigneeSnapshot.data().active !== true) throw new Error("Không tìm thấy hồ sơ nhân viên đang hoạt động với UID này.");
     const profile = assigneeSnapshot.data();
@@ -605,6 +622,7 @@ $("task-form").addEventListener("submit", async (event) => {
     button.disabled = false;
   }
 });
+$("task-open-employees").addEventListener("click", () => { if (state.profile?.role === "admin") showView("employees"); else toast("Quản lý nhân sự chỉ dành cho Admin. Bạn vẫn có thể chọn nhân sự trong danh sách."); });
 $("task-status-filter").addEventListener("change", renderTasks);
 $("task-refresh").addEventListener("click", () => loadTasks().catch(showError));
 async function loadSites() {
