@@ -46,7 +46,31 @@ service cloud.firestore {
     match /attendance_users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow list: if isManager();
-      allow create, update, delete: if false;
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'role', 'active'])
+        && request.resource.data.keys().hasOnly(['displayName', 'email', 'department', 'role', 'active'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 1
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.department is string
+        && request.resource.data.department.size() <= 100
+        && request.resource.data.role in ['employee', 'manager', 'admin']
+        && request.resource.data.active is bool;
+      allow update: if isAdmin()
+        && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'role', 'active'])
+        && request.resource.data.keys().hasOnly(['displayName', 'email', 'department', 'role', 'active'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 1
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.department is string
+        && request.resource.data.department.size() <= 100
+        && request.resource.data.role in ['employee', 'manager', 'admin']
+        && request.resource.data.active is bool;
+      allow delete: if false;
     }
     match /attendance_sites/{siteId} {
       allow read: if activeUser();
