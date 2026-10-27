@@ -70,6 +70,10 @@ function showView(name) {
     toast("Bạn không có quyền truy cập mục này");
     return;
   }
+  if (name === "employees" && state.profile?.role !== "admin") {
+    toast("Chỉ Admin được quản lý nhân viên.");
+    return;
+  }
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === "view-" + name));
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === name));
   const labels = { today: "CHẤM CÔNG", history: "LỊCH SỬ CÔNG", requests: "YÊU CẦU ĐIỀU CHỈNH", overview: "TỔNG QUAN", sites: "ĐỊA ĐIỂM CHẤM CÔNG", employees: "QUẢN LÝ NHÂN VIÊN" };
