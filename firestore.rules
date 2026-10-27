@@ -57,7 +57,7 @@ service cloud.firestore {
     }
     match /attendance_users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || isManager());
-      allow list: if isManager();
+      allow list: if activeUser() && roleLevel(userProfile().role) >= 2;
       allow create: if isAdmin()
         && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'role', 'active'])
         && request.resource.data.keys().hasOnly(['displayName', 'email', 'department', 'role', 'active'])
