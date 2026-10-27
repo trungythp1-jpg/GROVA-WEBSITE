@@ -7,7 +7,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
-const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null };
+const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null, taskAssignees: [] };
 const fmtTime = (date) => date ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date) : "--:--";
 const fmtDate = (date) => new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Ho_Chi_Minh" }).format(date);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
@@ -538,7 +538,7 @@ function renderTasks() {
       status.append(option);
     });
     status.value = task.status || "todo";
-    const assignedEmployee = state.employees.find((employee) => employee.id === task.assigneeUid);
+    const assignedEmployee = state.taskAssignees.find((employee) => employee.id === task.assigneeUid);
     const canManageTask = taskRoleLevel(state.profile?.role) > taskRoleLevel(assignedEmployee?.role || "employee");
     status.disabled = task.assigneeUid !== state.user.uid && !canManageTask;
     status.addEventListener("change", async () => {
@@ -564,6 +564,7 @@ async function loadTaskAssignees() {
   const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
   const employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
     .filter((employee) => employee.active === true && taskRoleLevel(state.profile?.role) > taskRoleLevel(employee.role) && employee.id !== state.user?.uid);
+  state.taskAssignees = employees;
   employees.sort((a, b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
   select.replaceChildren();
   select.append(new Option(employees.length ? "Chọn nhân sự nhận việc" : "Chưa có nhân sự đang hoạt động", ""));
@@ -574,14 +575,17 @@ async function loadTaskAssignees() {
   $("task-assignee-meta").textContent = employees.length + " nhân sự đang hoạt động · Người nhận thấy nhiệm vụ trong mục Công việc của tôi.";
 }
 async function loadTasks() {
-  const manager = ["admin","manager"].includes(state.profile?.role);
+  const manager = taskRoleLevel(state.profile?.role) >= 2;
   $("task-create-panel").style.display = manager ? "" : "none";
+  state.taskAssignees = [];
   if (manager) await loadTaskAssignees();
-  const taskQuery = manager
-    ? query(collection(db, "workspace_tasks"), orderBy("createdAt", "desc"), limit(200))
-    : query(collection(db, "workspace_tasks"), where("assigneeUid", "==", state.user.uid), limit(200));
-  const snapshot = await getDocs(taskQuery);
-  state.tasks = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a,b) => {
+  const taskQueries = manager
+    ? [query(collection(db, "workspace_tasks"), where("createdBy", "==", state.user.uid), limit(200)), query(collection(db, "workspace_tasks"), where("assigneeUid", "==", state.user.uid), limit(200))]
+    : [query(collection(db, "workspace_tasks"), where("assigneeUid", "==", state.user.uid), limit(200))];
+  const snapshots = await Promise.all(taskQueries.map((taskQuery) => getDocs(taskQuery)));
+  const taskMap = new Map();
+  snapshots.forEach((snapshot) => snapshot.docs.forEach((item) => taskMap.set(item.id, { id: item.id, ...item.data() })));
+  state.tasks = [...taskMap.values()].sort((a,b) => {
     const ad = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
     const bd = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
     return bd-ad;
