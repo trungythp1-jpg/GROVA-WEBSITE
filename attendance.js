@@ -44,7 +44,7 @@ async function loadSchedule() {
   const snapshot = await getDoc(doc(db, "attendance_settings", "schedule"));
   if (snapshot.exists()) {
     const data = snapshot.data();
-    if (/^([01]\\d|2[0-3]):[0-5]\\d$/.test(data.startTime || "") && /^([01]\\d|2[0-3]):[0-5]\\d$/.test(data.endTime || "") && timeToMinutes(data.endTime) > timeToMinutes(data.startTime)) {
+    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(data.startTime || "") && /^([01]\d|2[0-3]):[0-5]\d$/.test(data.endTime || "") && timeToMinutes(data.endTime) > timeToMinutes(data.startTime)) {
       state.schedule = { startTime: data.startTime, endTime: data.endTime };
     }
   }
