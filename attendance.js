@@ -520,6 +520,7 @@ onAuthStateChanged(auth, async (user) => {
     const admin = ["admin", "manager"].includes(state.profile.role);
     document.querySelectorAll(".admin-label, [data-view='overview'], [data-view='sites']").forEach((node) => { node.style.display = admin ? "" : "none"; });
     document.querySelectorAll("[data-view='employees']").forEach((node) => { node.style.display = state.profile.role === "admin" ? "" : "none"; });
+    document.querySelectorAll(".admin-workspace-shortcut").forEach((node) => { node.style.display = admin ? "" : "none"; });
     $("request-create-panel").style.display = admin ? "none" : "";
     const title = $("view-today").querySelector("h1");
     title.textContent = "Xin chào, " + (state.profile.displayName || user.displayName || user.email);
