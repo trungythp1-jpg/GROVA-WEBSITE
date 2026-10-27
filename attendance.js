@@ -365,40 +365,57 @@ async function reviewRequest(request, status) {
   } catch (error) { showError(error); }
 }
 async function loadOverview() {
-  if (!["admin", "manager"].includes(state.profile?.role)) return;
-  const today = todayKey();
-  const [usersSnapshot, recordsSnapshot, requestsSnapshot] = await Promise.all([
-    getDocs(query(collection(db, "attendance_users"), where("active", "==", true), limit(500))),
-    getDocs(query(collection(db, "attendance_records"), where("date", "==", today), limit(1000))),
-    getDocs(query(collection(db, "attendance_adjustment_requests"), where("status", "==", "pending"), limit(500)))
-  ]);
-  const users = usersSnapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-  const records = recordsSnapshot.docs.map((item) => item.data());
-  const byUid = new Map(records.map((item) => [item.uid, item]));
-  $("staff-count").textContent = String(users.length);
-  $("checked-in-count").textContent = String(records.length);
-  $("not-checked-count").textContent = String(Math.max(0, users.length - records.length));
-  $("pending-count").textContent = String(requestsSnapshot.size);
-  const rows = $("employee-rows");
-  rows.replaceChildren();
-  users.forEach((user) => {
-    const record = byUid.get(user.id);
-    const start = asDate(record?.clockInAt);
-    const end = asDate(record?.clockOutAt);
-    const row = document.createElement("tr");
-    [user.displayName || user.email || user.id, user.department || "Chưa phân bộ phận", fmtTime(start), fmtTime(end), end ? "Đã tan ca" : start ? "Đã vào ca" : "Chưa chấm"].forEach((value, index) => {
-      const cell = document.createElement("td");
-      if (index === 4) {
-        const badge = document.createElement("span");
-        badge.className = "table-status" + (end ? " good" : "");
-        badge.textContent = value;
-        cell.append(badge);
-      } else cell.textContent = value;
-      row.append(cell);
-    });
-    rows.append(row);
-  });
-  $("employee-search").dispatchEvent(new Event("input"));
+ if (!["admin","manager"].includes(state.profile?.role)) return;
+ if (!$("admin-attendance-date").value) $("admin-attendance-date").value=todayKey();
+ const date=$("admin-attendance-date").value||todayKey();
+ const [us,rs,ps]=await Promise.all([
+  getDocs(query(collection(db,"attendance_users"),where("active","==",true),limit(500))),
+  getDocs(query(collection(db,"attendance_records"),where("date","==",date),limit(1000))),
+  getDocs(query(collection(db,"attendance_adjustment_requests"),where("status","==","pending"),limit(500)))
+ ]);
+ state.employees=us.docs.map(x=>({id:x.id,...x.data()}));
+ state.adminAttendanceRecords=rs.docs.map(x=>({id:x.id,...x.data()}));
+ const byUid=new Map(state.adminAttendanceRecords.map(x=>[x.uid,x]));
+ $("staff-count").textContent=String(state.employees.length);
+ $("checked-in-count").textContent=String(state.adminAttendanceRecords.filter(x=>x.clockInAt).length);
+ $("not-checked-count").textContent=String(Math.max(0,state.employees.length-byUid.size));
+ $("pending-count").textContent=String(ps.size);
+ $("checked-in-note").textContent=date===todayKey()?"Bản ghi hôm nay":"Bản ghi ngày đã chọn";
+ const select=$("employee-department-filter"),prev=select.value,depts=[...new Set(state.employees.map(x=>x.department).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"vi"));
+ select.replaceChildren(new Option("Tất cả bộ phận",""));depts.forEach(x=>select.add(new Option(x,x)));select.value=depts.includes(prev)?prev:"";
+ renderAdminAttendance();await loadAdminAdjustmentRequests();
+}
+function renderAdminAttendance(){
+ const rows=$("employee-rows");if(!rows)return;rows.replaceChildren();
+ const term=$("employee-search").value.trim().toLocaleLowerCase("vi"),dept=$("employee-department-filter").value,filter=$("employee-status-filter").value;
+ const map=new Map((state.adminAttendanceRecords||[]).map(x=>[x.uid,x]));
+ const data=(state.employees||[]).map(user=>{const record=map.get(user.id),start=asDate(record?.clockInAt),end=asDate(record?.clockOutAt),late=!!(start&&fmtTime(start)>(state.schedule?.startTime||"08:00")),status=record?.adminAdjusted?"adjusted":late?"late":end?"checked-out":start?"checked-in":"missing";return{user,record,start,end,status};}).filter(x=>(!term||[x.user.displayName,x.user.email,x.user.department,x.user.id].join(" ").toLocaleLowerCase("vi").includes(term))&&(!dept||x.user.department===dept)&&(!filter||x.status===filter));
+ $("employee-result-count").textContent=data.length+" nhân sự";
+ if(!data.length){const row=document.createElement("tr"),cell=document.createElement("td");cell.colSpan=7;cell.className="empty-cell";cell.textContent="Không có nhân sự phù hợp bộ lọc.";row.append(cell);rows.append(row);return;}
+ data.forEach(({user,record,start,end,status})=>{const row=document.createElement("tr"),nameCell=document.createElement("td"),wrap=document.createElement("div");wrap.className="admin-employee-name";const name=document.createElement("strong");name.textContent=user.displayName||user.email||user.id;const email=document.createElement("small");email.textContent=user.email||"";wrap.append(name,email);nameCell.append(wrap);row.append(nameCell);
+ [user.department||"Chưa phân bộ phận",fmtTime(start),fmtTime(end),start&&end?Math.floor((end-start)/3600000)+"h "+String(Math.floor((end-start)/60000)%60).padStart(2,"0")+"m":"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v;row.append(td);});
+ const td=document.createElement("td"),badge=document.createElement("span");badge.className="table-status "+(status==="checked-out"?"good":status==="late"?"late":status==="adjusted"?"adjusted":status==="missing"?"muted-status":"");badge.textContent=({ "checked-out":"Đã tan ca",late:"Đi muộn",adjusted:"Đã điều chỉnh","checked-in":"Đang làm",missing:"Chưa chấm"})[status];td.append(badge);row.append(td);
+ const action=document.createElement("td"),btn=document.createElement("button");btn.type="button";btn.className="outline-button table-detail-button";btn.textContent="Chi tiết";btn.addEventListener("click",()=>showAttendanceDetails(user,record,start,end));action.append(btn);row.append(action);rows.append(row);
+ });
+}
+function showAttendanceDetails(user,record,start,end){
+ const pos=p=>p&&typeof p.latitude==="number"&&typeof p.longitude==="number"?p.latitude.toFixed(6)+", "+p.longitude.toFixed(6):"Không có dữ liệu GPS";
+ window.alert(["Nhân viên: "+(user.displayName||user.email||user.id),"Ngày: "+$("admin-attendance-date").value,"Giờ vào: "+fmtTime(start),"Giờ ra: "+fmtTime(end),"Địa điểm: "+(record?.siteName||"Chưa xác định"),"GPS vào: "+pos(record?.clockInLocation),"GPS ra: "+pos(record?.clockOutLocation),"Nguồn: "+(record?.adminAdjusted?"Điều chỉnh bởi quản lý":"Chấm công thiết bị"),record?.adjustmentNote?"Ghi chú điều chỉnh: "+record.adjustmentNote:""].filter(Boolean).join("\n"));
+}
+async function loadAdminAdjustmentRequests(){
+ if(!["admin","manager"].includes(state.profile?.role))return;
+ const status=$("admin-request-status").value||"pending",q=status==="all"?query(collection(db,"attendance_adjustment_requests"),limit(200)):query(collection(db,"attendance_adjustment_requests"),where("status","==",status),limit(200));
+ const snap=await getDocs(q);state.requests=snap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(asDate(b.createdAt)?.getTime()||0)-(asDate(a.createdAt)?.getTime()||0));renderAdminAdjustmentRequests();
+}
+function renderAdminAdjustmentRequests(){
+ const list=$("admin-adjustment-list");list.replaceChildren();
+ if(!state.requests.length){const empty=document.createElement("div");empty.className="empty-state";empty.textContent="Không có phiếu ở trạng thái này.";list.append(empty);return;}
+ state.requests.forEach(req=>{const item=document.createElement("article");item.className="admin-adjustment-item";const top=document.createElement("div");top.className="admin-adjustment-top";const head=document.createElement("div"),name=document.createElement("strong");name.textContent=req.displayName||req.employeeName||req.uid||"Nhân viên";const date=document.createElement("small");date.textContent=req.date||"Chưa có ngày";head.append(name,date);const badge=document.createElement("span");badge.className="table-status "+(req.status==="approved"?"good":req.status==="rejected"?"rejected":"");badge.textContent=req.status==="approved"?"Đã duyệt":req.status==="rejected"?"Đã từ chối":"Chờ duyệt";top.append(head,badge);item.append(top);
+ const times=document.createElement("div");times.className="admin-adjustment-times";[["Giờ vào đề nghị",req.requestedClockIn||"—"],["Giờ ra đề nghị",req.requestedClockOut||"—"]].forEach(([label,value])=>{const box=document.createElement("div"),small=document.createElement("small"),strong=document.createElement("strong");small.textContent=label;strong.textContent=value;box.append(small,strong);times.append(box);});item.append(times);
+ const reason=document.createElement("p");reason.className="admin-adjustment-reason";reason.textContent="Lý do: "+(req.reason||"Không ghi lý do");item.append(reason);
+ if(req.reviewedAt){const meta=document.createElement("p");meta.className="admin-review-meta";meta.textContent=(req.status==="approved"?"Đã duyệt":"Đã từ chối")+" · "+(asDate(req.reviewedAt)?fmtDate(asDate(req.reviewedAt))+" "+fmtTime(asDate(req.reviewedAt)):"đã xử lý")+(req.reviewNote?" · "+req.reviewNote:"");item.append(meta);}
+ if(req.status==="pending"){const actions=document.createElement("div");actions.className="request-actions";const yes=document.createElement("button");yes.type="button";yes.className="solid-button";yes.textContent="Duyệt và cập nhật công";yes.addEventListener("click",()=>reviewRequest(req,"approved"));const no=document.createElement("button");no.type="button";no.className="outline-button";no.textContent="Từ chối";no.addEventListener("click",()=>reviewRequest(req,"rejected"));actions.append(yes,no);item.append(actions);}list.append(item);
+ });
 }
 function resetEmployeeForm() {
   state.editingEmployeeId = null;
@@ -806,10 +823,14 @@ $("export-csv").addEventListener("click", () => {
   link.click();
   URL.revokeObjectURL(url);
 });
-$("employee-search").addEventListener("input", (event) => {
-  const term = event.target.value.trim().toLocaleLowerCase("vi");
-  document.querySelectorAll("#employee-rows tr").forEach((row) => { row.hidden = !row.textContent.toLocaleLowerCase("vi").includes(term); });
-});
+$("admin-attendance-date").addEventListener("change",()=>loadOverview().catch(showError));
+$("employee-search").addEventListener("input",renderAdminAttendance);
+$("employee-department-filter").addEventListener("change",renderAdminAttendance);
+$("employee-status-filter").addEventListener("change",renderAdminAttendance);
+$("admin-refresh").addEventListener("click",()=>loadOverview().catch(showError));
+$("admin-requests-refresh").addEventListener("click",()=>loadAdminAdjustmentRequests().catch(showError));
+$("admin-request-status").addEventListener("change",()=>loadAdminAdjustmentRequests().catch(showError));
+$("jump-pending").addEventListener("click",()=>{$("admin-request-status").value="pending";loadAdminAdjustmentRequests().catch(showError);$("admin-adjustment-panel").scrollIntoView({behavior:"smooth",block:"start"});});
 $("employee-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (state.profile?.role !== "admin") { toast("Chỉ Admin được quản lý hồ sơ nhân viên."); return; }
