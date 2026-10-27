@@ -60,13 +60,11 @@ async function loadLeaveRequests() {
 function renderLeaveBalances() {
   const year = Number(todayKey().slice(0,4));
   const month = todayKey().slice(0,7);
-  const approvedAnnual = state.leaveRequests.filter((item) => item.status === "approved" && item.type === "annual_leave" && Number(String(item.date).slice(0,4)) === year).length;
-  const approvedHalf = state.leaveRequests.filter((item) => item.status === "approved" && item.type === "half_day" && Number(String(item.date).slice(0,4)) === year).length;
-  const approvedEarly = state.leaveRequests.filter((item) => item.status === "approved" && item.type === "early_leave" && String(item.date).startsWith(month));
-  const pendingAnnual = state.leaveRequests.filter((item) => item.status === "pending" && item.type === "annual_leave" && Number(String(item.date).slice(0,4)) === year).length;
-  const pendingHalf = state.leaveRequests.filter((item) => item.status === "pending" && item.type === "half_day" && Number(String(item.date).slice(0,4)) === year).length;
+  const approvedAnnual = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "annual_leave" && Number(String(item.date).slice(0,4)) === year).length;
+  const approvedHalf = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "half_day" && Number(String(item.date).slice(0,4)) === year).length;
+  const approvedEarly = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "early_leave" && String(item.date).startsWith(month));
   const usedMinutes = approvedEarly.reduce((sum,item) => sum + Number(item.minutes || 0),0);
-  $("leave-balance").textContent = Math.max(0,12-approvedAnnual-approvedHalf*0.5-pendingAnnual-pendingHalf*0.5) + " ngày";
+  $("leave-balance").textContent = Math.max(0,12-approvedAnnual-approvedHalf*0.5) + " ngày";
   $("early-count-balance").textContent = Math.max(0,2-approvedEarly.length) + " lượt";
   $("early-minute-balance").textContent = Math.max(0,60-usedMinutes) + " phút";
 }
@@ -88,7 +86,7 @@ function renderAttendance() {
   const nowMinutes = currentVietnamMinutes();
   const startMinutes = timeToMinutes(state.schedule.startTime);
   const endMinutes = timeToMinutes(state.schedule.endTime);
-  const late = Boolean(state.clockIn && state.clockIn.getHours() * 60 + state.clockIn.getMinutes() > startMinutes);
+  const late = Boolean(state.clockIn && vietnamMinutesForDate(state.clockIn) > startMinutes);
   $("clock-in").disabled = !state.user || Boolean(state.clockIn);
   const approvedEarlyLeave = state.leaveRequests.some((item) => item.uid === state.user?.uid && item.date === todayKey() && item.type === "early_leave" && item.status === "approved");
   $("clock-out").disabled = !state.user || !state.clockIn || Boolean(state.clockOut) || (nowMinutes < endMinutes && !approvedEarlyLeave);
@@ -580,6 +578,98 @@ $("locate").addEventListener("click", getLocation);
 document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
 document.querySelectorAll("[data-go]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.go)));
 $("filter-history").addEventListener("click", renderHistory);
+$("schedule-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (state.profile?.role !== "admin") return;
+  const startTime = $("schedule-start-input").value;
+  const endTime = $("schedule-end-input").value;
+  if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+    $("schedule-feedback").textContent = "Giờ kết thúc phải sau giờ bắt đầu.";
+    $("schedule-feedback").className = "feedback error";
+    return;
+  }
+  const button = $("schedule-save");
+  button.disabled = true;
+  try {
+    await setDoc(doc(db, "attendance_settings", "schedule"), { startTime, endTime, updatedAt: serverTimestamp(), updatedBy: state.user.uid });
+    state.schedule = { startTime, endTime };
+    renderAttendance();
+    $("schedule-feedback").textContent = "Đã lưu giờ làm việc mới.";
+    $("schedule-feedback").className = "feedback";
+    toast("Đã cập nhật giờ làm việc.");
+  } catch (error) {
+    $("schedule-feedback").textContent = error.message || "Không lưu được giờ làm việc.";
+    $("schedule-feedback").className = "feedback error";
+  } finally { button.disabled = false; }
+});
+$("leave-type").addEventListener("change", renderLeaveType);
+$("leave-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!state.user) return;
+  const type = $("leave-type").value;
+  const date = $("leave-date").value;
+  const reason = $("leave-reason").value.trim();
+  if (reason.length < 5) {
+    $("leave-feedback").textContent = "Vui lòng nhập lý do ít nhất 5 ký tự.";
+    $("leave-feedback").className = "feedback error";
+    return;
+  }
+  if (date < todayKey()) {
+    $("leave-feedback").textContent = "Ngày đăng ký không được ở trong quá khứ.";
+    $("leave-feedback").className = "feedback error";
+    return;
+  }
+  const year = Number(date.slice(0,4));
+  const month = date.slice(0,7);
+  const yearRequests = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && Number(String(item.date).slice(0,4)) === year);
+  const monthEarly = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "early_leave" && String(item.date).startsWith(month));
+  let minutes = 0;
+  let halfDayPeriod = "";
+  if (type === "early_leave") {
+    minutes = Number($("leave-minutes").value);
+    const usedMinutes = monthEarly.reduce((sum,item) => sum + Number(item.minutes || 0),0);
+    if (monthEarly.length >= 2 || usedMinutes + minutes > 60) {
+      $("leave-feedback").textContent = "Vượt hạn mức về sớm: tối đa 2 lượt và tổng cộng 60 phút mỗi tháng, tính cả yêu cầu đang chờ.";
+      $("leave-feedback").className = "feedback error";
+      return;
+    }
+  } else {
+    const usedLeave = yearRequests.reduce((sum,item) => sum + (item.type === "annual_leave" ? 1 : item.type === "half_day" ? 0.5 : 0),0);
+    const cost = type === "annual_leave" ? 1 : 0.5;
+    if (usedLeave + cost > 12) {
+      $("leave-feedback").textContent = "Bạn đã dùng hoặc đăng ký hết hạn mức 12 ngày phép năm.";
+      $("leave-feedback").className = "feedback error";
+      return;
+    }
+    if (type === "half_day") halfDayPeriod = $("half-day-period").value;
+  }
+  const button = $("leave-submit");
+  button.disabled = true;
+  try {
+    await addDoc(collection(db, "attendance_leave_requests"), {
+      uid: state.user.uid,
+      displayName: state.profile.displayName || state.user.email || "",
+      type,
+      date,
+      minutes,
+      halfDayPeriod,
+      reason,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await loadLeaveRequests();
+    event.target.reset();
+    $("leave-date").value = todayKey();
+    renderLeaveType();
+    $("leave-feedback").textContent = "Đã gửi đăng ký, đang chờ quản lý xem xét.";
+    $("leave-feedback").className = "feedback";
+    toast("Đã gửi đăng ký.");
+  } catch (error) {
+    $("leave-feedback").textContent = error.message || "Không gửi được đăng ký.";
+    $("leave-feedback").className = "feedback error";
+  } finally { button.disabled = false; }
+});
 $("request-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!state.user) return;
@@ -589,6 +679,8 @@ $("request-form").addEventListener("submit", async (event) => {
     await addDoc(collection(db, "attendance_adjustment_requests"), { uid: state.user.uid, date: $("request-date").value, requestedClockIn: $("request-in").value, requestedClockOut: $("request-out").value, reason, status: "pending", createdAt: serverTimestamp() });
     event.target.reset();
     $("request-date").value = todayKey();
+$("leave-date").value = todayKey();
+renderLeaveType();
     await loadRequests();
     toast("Đã gửi yêu cầu điều chỉnh");
   } catch (error) { showError(error); }
@@ -705,6 +797,7 @@ onAuthStateChanged(auth, async (user) => {
     $("task-create-panel").style.display = admin ? "" : "none";
     const title = $("view-today").querySelector("h1");
     title.textContent = "Xin chào, " + (state.profile.displayName || user.displayName || user.email);
+    await Promise.all([loadSchedule(), loadLeaveRequests()]);
     await Promise.all([loadToday(), loadHistory()]);
     renderHistory();
     await loadRequests();
