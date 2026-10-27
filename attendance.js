@@ -66,7 +66,7 @@ function renderAttendance() {
   rows.append(row);
 }
 function showView(name) {
-  if (["overview", "sites", "employees"].includes(name) && !["admin", "manager"].includes(state.profile?.role)) {
+  if (["overview", "sites"].includes(name) && !["admin", "manager"].includes(state.profile?.role)) {
     toast("Bạn không có quyền truy cập mục này");
     return;
   }
@@ -518,7 +518,8 @@ onAuthStateChanged(auth, async (user) => {
     login.style.display = "none";
     $("page-heading").textContent = "CHẤM CÔNG";
     const admin = ["admin", "manager"].includes(state.profile.role);
-    document.querySelectorAll(".admin-label, [data-view='overview'], [data-view='sites'], [data-view='employees']").forEach((node) => { node.style.display = admin ? "" : "none"; });
+    document.querySelectorAll(".admin-label, [data-view='overview'], [data-view='sites']").forEach((node) => { node.style.display = admin ? "" : "none"; });
+    document.querySelectorAll("[data-view='employees']").forEach((node) => { node.style.display = state.profile.role === "admin" ? "" : "none"; });
     $("request-create-panel").style.display = admin ? "none" : "";
     const title = $("view-today").querySelector("h1");
     title.textContent = "Xin chào, " + (state.profile.displayName || user.displayName || user.email);
