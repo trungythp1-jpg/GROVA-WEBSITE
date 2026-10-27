@@ -7,7 +7,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
-const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null };
+const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null };
 const fmtTime = (date) => date ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date) : "--:--";
 const fmtDate = (date) => new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Ho_Chi_Minh" }).format(date);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
@@ -28,6 +28,53 @@ function updateClock() {
   $("clock").textContent = new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(now);
   $("today-date").textContent = fmtDate(now).toLocaleUpperCase("vi-VN");
 }
+function timeToMinutes(value) {
+  const [hours, minutes] = String(value || "00:00").split(":").map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
+}
+function currentVietnamMinutes() {
+  const parts = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(new Date()).split(":").map(Number);
+  return parts[0] * 60 + parts[1];
+}
+function vietnamMinutesForDate(date) {
+  const parts = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date).split(":").map(Number);
+  return parts[0] * 60 + parts[1];
+}
+async function loadSchedule() {
+  const snapshot = await getDoc(doc(db, "attendance_settings", "schedule"));
+  if (snapshot.exists()) {
+    const data = snapshot.data();
+    if (/^([01]\\d|2[0-3]):[0-5]\\d$/.test(data.startTime || "") && /^([01]\\d|2[0-3]):[0-5]\\d$/.test(data.endTime || "") && timeToMinutes(data.endTime) > timeToMinutes(data.startTime)) {
+      state.schedule = { startTime: data.startTime, endTime: data.endTime };
+    }
+  }
+  $("schedule-start-input").value = state.schedule.startTime;
+  $("schedule-end-input").value = state.schedule.endTime;
+}
+async function loadLeaveRequests() {
+  const q = query(collection(db, "attendance_leave_requests"), where("uid", "==", state.user.uid), limit(200));
+  const snapshot = await getDocs(q);
+  state.leaveRequests = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  renderLeaveBalances();
+}
+function renderLeaveBalances() {
+  const year = Number(todayKey().slice(0,4));
+  const month = todayKey().slice(0,7);
+  const approvedAnnual = state.leaveRequests.filter((item) => item.status === "approved" && item.type === "annual_leave" && Number(String(item.date).slice(0,4)) === year).length;
+  const approvedHalf = state.leaveRequests.filter((item) => item.status === "approved" && item.type === "half_day" && Number(String(item.date).slice(0,4)) === year).length;
+  const approvedEarly = state.leaveRequests.filter((item) => item.status === "approved" && item.type === "early_leave" && String(item.date).startsWith(month));
+  const pendingAnnual = state.leaveRequests.filter((item) => item.status === "pending" && item.type === "annual_leave" && Number(String(item.date).slice(0,4)) === year).length;
+  const pendingHalf = state.leaveRequests.filter((item) => item.status === "pending" && item.type === "half_day" && Number(String(item.date).slice(0,4)) === year).length;
+  const usedMinutes = approvedEarly.reduce((sum,item) => sum + Number(item.minutes || 0),0);
+  $("leave-balance").textContent = Math.max(0,12-approvedAnnual-approvedHalf*0.5-pendingAnnual-pendingHalf*0.5) + " ngày";
+  $("early-count-balance").textContent = Math.max(0,2-approvedEarly.length) + " lượt";
+  $("early-minute-balance").textContent = Math.max(0,60-usedMinutes) + " phút";
+}
+function renderLeaveType() {
+  const type = $("leave-type").value;
+  $("early-leave-fields").hidden = type !== "early_leave";
+  $("half-day-fields").hidden = type !== "half_day";
+}
 function durationText() {
   if (!state.clockIn) return "--";
   const end = state.clockOut || new Date();
@@ -38,8 +85,19 @@ function renderAttendance() {
   $("clock-in-value").textContent = fmtTime(state.clockIn);
   $("clock-out-value").textContent = fmtTime(state.clockOut);
   $("duration-value").textContent = durationText();
+  const nowMinutes = currentVietnamMinutes();
+  const startMinutes = timeToMinutes(state.schedule.startTime);
+  const endMinutes = timeToMinutes(state.schedule.endTime);
+  const late = Boolean(state.clockIn && state.clockIn.getHours() * 60 + state.clockIn.getMinutes() > startMinutes);
   $("clock-in").disabled = !state.user || Boolean(state.clockIn);
-  $("clock-out").disabled = !state.user || !state.clockIn || Boolean(state.clockOut);
+  const approvedEarlyLeave = state.leaveRequests.some((item) => item.uid === state.user?.uid && item.date === todayKey() && item.type === "early_leave" && item.status === "approved");
+  $("clock-out").disabled = !state.user || !state.clockIn || Boolean(state.clockOut) || (nowMinutes < endMinutes && !approvedEarlyLeave);
+  $("schedule-hours").textContent = state.schedule.startTime + " – " + state.schedule.endTime;
+  $("schedule-message").textContent = late ? "Bạn đã vào ca muộn so với giờ bắt đầu " + state.schedule.startTime + "." : "Chấm công sau " + state.schedule.startTime + " sẽ được ghi nhận đi muộn.";
+  $("attendance-status").classList.toggle("late", late && !state.clockOut);
+  if (late && !state.clockOut) $("attendance-status").textContent = "Đi muộn";
+  const adminPanel = $("schedule-admin-panel");
+  if (adminPanel) adminPanel.style.display = state.profile?.role === "admin" ? "" : "none";
   const status = $("attendance-status");
   status.className = "status-badge " + (state.clockOut ? "good" : "pending");
   status.textContent = state.clockOut ? "Đã hoàn thành" : state.clockIn ? "Đang làm việc" : "Chưa chấm công";
