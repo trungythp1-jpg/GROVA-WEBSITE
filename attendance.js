@@ -473,7 +473,7 @@ function renderEmployees() {
       $("employee-name").value = employee.displayName || "";
       $("employee-email").value = employee.email || "";
       $("employee-department").value = employee.department || "";
-      $("employee-role").value = ["employee", "manager", "admin"].includes(employee.role) ? employee.role : "employee";
+      $("employee-role").value = ["employee", "team_lead", "manager", "department_head", "executive_director", "admin"].includes(employee.role) ? employee.role : "employee";
       $("employee-active").checked = employee.active === true;
       $("employee-form-title").textContent = "Sửa hồ sơ nhân viên";
       $("employee-save").textContent = "Cập nhật hồ sơ";
@@ -871,7 +871,7 @@ $("employee-form").addEventListener("submit", async (event) => {
   const department = $("employee-department").value.trim();
   const role = $("employee-role").value;
   const active = $("employee-active").checked;
-  if (uid.length < 10 || !displayName || !["employee", "manager", "admin"].includes(role)) {
+  if (uid.length < 10 || !displayName || !["employee", "team_lead", "manager", "department_head", "executive_director", "admin"].includes(role)) {
     $("employee-feedback").textContent = "Kiểm tra UID, họ tên và vai trò.";
     $("employee-feedback").classList.add("error");
     return;
