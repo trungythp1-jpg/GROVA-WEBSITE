@@ -35,7 +35,7 @@ service cloud.firestore {
       allow update: if request.auth != null
         && request.auth.uid == 'oZ3321eD7IOxOqJixysUjgEEvdC3'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note', 'followUpDate', 'updatedAt'])
-        && request.resource.data.status in ['Mới', 'Đã liên hệ', 'Đang tư vấn', 'Đang tư vấn', 'Đã chốt', 'Không tiếp tục']
+        && request.resource.data.status in ['Mới', 'Đã liên hệ', 'Đang tư vấn', 'Đã chốt', 'Không tiếp tục']
         && request.resource.data.note is string
         && request.resource.data.note.size() <= 1000
         && request.resource.data.followUpDate is string
