@@ -158,6 +158,12 @@ function durationText() {
   const minutes = Math.max(0, Math.floor((end - state.clockIn) / 60000));
   return Math.floor(minutes / 60) + "h " + String(minutes % 60).padStart(2, "0") + "m";
 }
+function updateClockOutAvailability() {
+  const endMinutes = timeToMinutes(state.schedule.endTime);
+  const approvedEarlyLeave = state.leaveRequests.find((item) => item.uid === state.user?.uid && item.date === todayKey() && item.type === "early_leave" && item.status === "approved");
+  const allowedAt = approvedEarlyLeave ? endMinutes - Number(approvedEarlyLeave.minutes || 0) : endMinutes;
+  $("clock-out").disabled = !state.user || !state.clockIn || Boolean(state.clockOut) || currentVietnamMinutes() < allowedAt;
+}
 function renderAttendance() {
   $("clock-in-value").textContent = fmtTime(state.clockIn);
   $("clock-out-value").textContent = fmtTime(state.clockOut);
@@ -167,9 +173,7 @@ function renderAttendance() {
   const endMinutes = timeToMinutes(state.schedule.endTime);
   const late = Boolean(state.clockIn && vietnamMinutesForDate(state.clockIn) > startMinutes);
   $("clock-in").disabled = !state.user || Boolean(state.clockIn);
-  const approvedEarlyLeave = state.leaveRequests.find((item) => item.uid === state.user?.uid && item.date === todayKey() && item.type === "early_leave" && item.status === "approved");
-  const earlyLeaveAllowedAt = approvedEarlyLeave ? endMinutes - Number(approvedEarlyLeave.minutes || 0) : endMinutes;
-  $("clock-out").disabled = !state.user || !state.clockIn || Boolean(state.clockOut) || nowMinutes < earlyLeaveAllowedAt;
+  updateClockOutAvailability();
   $("schedule-hours").textContent = state.schedule.startTime + " – " + state.schedule.endTime;
   $("schedule-message").textContent = late ? "Bạn đã vào ca muộn so với giờ bắt đầu " + state.schedule.startTime + "." : "Chấm công sau " + state.schedule.startTime + " sẽ được ghi nhận đi muộn.";
   const adminPanel = $("schedule-admin-panel");
@@ -887,7 +891,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 updateClock();
-setInterval(() => { updateClock(); if (state.clockIn && !state.clockOut) $("duration-value").textContent = durationText(); }, 1000);
+setInterval(() => { updateClock(); updateClockOutAvailability(); if (state.clockIn && !state.clockOut) $("duration-value").textContent = durationText(); }, 1000);
 $("request-date").value = todayKey();
 
 $("logout-button").addEventListener("click", () => signOut(auth));
