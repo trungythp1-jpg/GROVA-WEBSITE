@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, runTransaction, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
@@ -77,6 +77,7 @@ function showView(name) {
   if (name === "history") renderHistory();
   if (name === "requests") loadRequests().catch(showError);
   if (name === "sites") loadSites().catch(showError);
+  if (name === "overview") loadOverview().catch(showError);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function showError(error) {
@@ -126,7 +127,10 @@ function renderHistory() {
   });
 }
 async function loadRequests() {
-  const q = query(collection(db, "attendance_adjustment_requests"), where("uid", "==", state.user.uid), orderBy("createdAt", "desc"), limit(50));
+  const manager = ["admin", "manager"].includes(state.profile?.role);
+  const q = manager
+    ? query(collection(db, "attendance_adjustment_requests"), where("status", "==", "pending"), orderBy("createdAt", "desc"), limit(100))
+    : query(collection(db, "attendance_adjustment_requests"), where("uid", "==", state.user.uid), orderBy("createdAt", "desc"), limit(50));
   const snapshot = await getDocs(q);
   state.requests = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
   renderRequests();
@@ -152,8 +156,78 @@ function renderRequests() {
     badge.className = "table-status";
     badge.textContent = request.status === "approved" ? "Đã duyệt" : request.status === "rejected" ? "Từ chối" : "Chờ duyệt";
     item.append(title, reason, badge);
+    if (["admin", "manager"].includes(state.profile?.role) && request.status === "pending") {
+      const actions = document.createElement("div");
+      actions.className = "request-actions";
+      const approve = document.createElement("button");
+      approve.type = "button";
+      approve.className = "solid-button";
+      approve.textContent = "Duyệt";
+      approve.addEventListener("click", () => reviewRequest(request, "approved"));
+      const reject = document.createElement("button");
+      reject.type = "button";
+      reject.className = "outline-button";
+      reject.textContent = "Từ chối";
+      reject.addEventListener("click", () => reviewRequest(request, "rejected"));
+      actions.append(approve, reject);
+      item.append(actions);
+    }
     list.append(item);
   });
+}
+async function reviewRequest(request, status) {
+  const reviewNote = window.prompt(status === "approved" ? "Ghi chú duyệt (có thể để trống):" : "Lý do từ chối:");
+  if (reviewNote === null) return;
+  if (status === "rejected" && reviewNote.trim().length < 3) {
+    toast("Vui lòng nhập lý do từ chối.");
+    return;
+  }
+  try {
+    await updateDoc(doc(db, "attendance_adjustment_requests", request.id), {
+      status,
+      reviewedAt: serverTimestamp(),
+      reviewedBy: state.user.uid,
+      reviewNote: reviewNote.trim()
+    });
+    await loadRequests();
+    toast(status === "approved" ? "Đã duyệt yêu cầu." : "Đã từ chối yêu cầu.");
+  } catch (error) { showError(error); }
+}
+async function loadOverview() {
+  if (!["admin", "manager"].includes(state.profile?.role)) return;
+  const today = todayKey();
+  const [usersSnapshot, recordsSnapshot, requestsSnapshot] = await Promise.all([
+    getDocs(query(collection(db, "attendance_users"), where("active", "==", true), limit(500))),
+    getDocs(query(collection(db, "attendance_records"), where("date", "==", today), limit(1000))),
+    getDocs(query(collection(db, "attendance_adjustment_requests"), where("status", "==", "pending"), limit(500)))
+  ]);
+  const users = usersSnapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  const records = recordsSnapshot.docs.map((item) => item.data());
+  const byUid = new Map(records.map((item) => [item.uid, item]));
+  $("staff-count").textContent = String(users.length);
+  $("checked-in-count").textContent = String(records.length);
+  $("not-checked-count").textContent = String(Math.max(0, users.length - records.length));
+  $("pending-count").textContent = String(requestsSnapshot.size);
+  const rows = $("employee-rows");
+  rows.replaceChildren();
+  users.forEach((user) => {
+    const record = byUid.get(user.id);
+    const start = asDate(record?.clockInAt);
+    const end = asDate(record?.clockOutAt);
+    const row = document.createElement("tr");
+    [user.displayName || user.email || user.id, user.department || "Chưa phân bộ phận", fmtTime(start), fmtTime(end), end ? "Đã tan ca" : start ? "Đã vào ca" : "Chưa chấm"].forEach((value, index) => {
+      const cell = document.createElement("td");
+      if (index === 4) {
+        const badge = document.createElement("span");
+        badge.className = "table-status" + (end ? " good" : "");
+        badge.textContent = value;
+        cell.append(badge);
+      } else cell.textContent = value;
+      row.append(cell);
+    });
+    rows.append(row);
+  });
+  $("employee-search").dispatchEvent(new Event("input"));
 }
 async function loadSites() {
   const snapshot = await getDocs(query(collection(db, "attendance_sites"), where("active", "==", true)));
@@ -220,8 +294,14 @@ $("clock-in").addEventListener("click", async () => {
   try {
     const site = await requireLocationAndSite();
     if (state.recordId || state.clockIn) throw new Error("Bạn đã chấm công vào ca hôm nay.");
-    const ref = await addDoc(collection(db, "attendance_records"), { uid: state.user.uid, date: todayKey(), siteId: site.id, siteName: site.name || "", clockInAt: serverTimestamp(), clockInLocation: state.location, clockOutAt: null, clockOutLocation: null, createdAt: serverTimestamp() });
-    state.recordId = ref.id;
+    if (state.location.accuracy > 100) throw new Error("GPS chưa đủ chính xác (trên 100 m). Hãy thử lại ngoài trời.");
+    const recordRef = doc(db, "attendance_records", state.user.uid + "_" + todayKey());
+    await runTransaction(db, async (transaction) => {
+      const existing = await transaction.get(recordRef);
+      if (existing.exists()) throw new Error("Bạn đã có bản ghi chấm công hôm nay.");
+      transaction.set(recordRef, { uid: state.user.uid, date: todayKey(), siteId: site.id, siteName: site.name || "", clockInAt: serverTimestamp(), clockInLocation: state.location, clockOutAt: null, clockOutLocation: null, createdAt: serverTimestamp() });
+    });
+    state.recordId = recordRef.id;
     await loadToday();
     feedback("Đã ghi nhận giờ vào trên hệ thống.");
     toast("Chấm công vào ca thành công");
@@ -231,6 +311,7 @@ $("clock-out").addEventListener("click", async () => {
   if (!state.user || !state.recordId || !state.clockIn || state.clockOut) return;
   try {
     const site = await requireLocationAndSite();
+    if (state.location.accuracy > 100) throw new Error("GPS chưa đủ chính xác (trên 100 m). Hãy thử lại ngoài trời.");
     await updateDoc(doc(db, "attendance_records", state.recordId), { clockOutAt: serverTimestamp(), clockOutLocation: state.location, clockOutSiteId: site.id, clockOutSiteName: site.name || "" });
     await loadToday();
     await loadHistory();
@@ -274,7 +355,25 @@ $("employee-search").addEventListener("input", (event) => {
   const term = event.target.value.trim().toLocaleLowerCase("vi");
   document.querySelectorAll("#employee-rows tr").forEach((row) => { row.hidden = !row.textContent.toLocaleLowerCase("vi").includes(term); });
 });
-$("add-site").addEventListener("click", () => toast("Chỉ quản trị viên được cấu hình địa điểm qua Firebase Console."));
+$("add-site").addEventListener("click", async () => {
+  if (state.profile?.role !== "admin") { toast("Chỉ quản trị viên được thêm địa điểm."); return; }
+  const name = window.prompt("Tên địa điểm:");
+  if (!name?.trim()) return;
+  const address = window.prompt("Địa chỉ:");
+  if (address === null) return;
+  const latitude = Number(window.prompt("Vĩ độ (latitude):", "20.841202"));
+  const longitude = Number(window.prompt("Kinh độ (longitude):", "106.666418"));
+  const radiusMeters = Number(window.prompt("Bán kính cho phép (m):", "150"));
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || !Number.isFinite(radiusMeters) || radiusMeters < 25 || radiusMeters > 2000) {
+    toast("Tọa độ hoặc bán kính không hợp lệ.");
+    return;
+  }
+  try {
+    await addDoc(collection(db, "attendance_sites"), { name: name.trim(), address: (address || "").trim(), latitude, longitude, radiusMeters, active: true, createdAt: serverTimestamp(), createdBy: state.user.uid });
+    await loadSites();
+    toast("Đã thêm địa điểm chấm công.");
+  } catch (error) { showError(error); }
+});
 const login = document.createElement("div");
 login.id = "attendance-login";
 login.style.cssText = "position:fixed;inset:0;z-index:1000;background:#f4f7f5;display:grid;place-items:center;padding:20px";
@@ -307,6 +406,7 @@ onAuthStateChanged(auth, async (user) => {
     $("page-heading").textContent = "CHẤM CÔNG";
     const admin = ["admin", "manager"].includes(state.profile.role);
     document.querySelectorAll(".admin-label, [data-view='overview'], [data-view='sites']").forEach((node) => { node.style.display = admin ? "" : "none"; });
+    $("request-create-panel").style.display = admin ? "none" : "";
     const title = $("view-today").querySelector("h1");
     title.textContent = "Xin chào, " + (state.profile.displayName || user.displayName || user.email);
     await Promise.all([loadToday(), loadHistory()]);
