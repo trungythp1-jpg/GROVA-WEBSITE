@@ -319,3 +319,5 @@ onAuthStateChanged(auth, async (user) => {
 updateClock();
 setInterval(() => { updateClock(); if (state.clockIn && !state.clockOut) $("duration-value").textContent = durationText(); }, 1000);
 $("request-date").value = todayKey();
+
+$("logout-button").addEventListener("click", () => signOut(auth));
