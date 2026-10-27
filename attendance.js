@@ -89,9 +89,9 @@ function asDate(value) {
   return value?.toDate ? value.toDate() : value instanceof Date ? value : null;
 }
 async function loadToday() {
-  const q = query(collection(db, "attendance_records"), where("uid", "==", state.user.uid), where("date", "==", todayKey()), limit(1));
+  const q = query(collection(db, "attendance_records"), where("uid", "==", state.user.uid), limit(500));
   const snapshot = await getDocs(q);
-  const item = snapshot.docs[0];
+  const item = snapshot.docs.find((record) => record.data().date === todayKey());
   state.recordId = item?.id || null;
   const data = item?.data();
   state.clockIn = asDate(data?.clockInAt);
@@ -99,9 +99,9 @@ async function loadToday() {
   renderAttendance();
 }
 async function loadHistory() {
-  const q = query(collection(db, "attendance_records"), where("uid", "==", state.user.uid), orderBy("date", "desc"), limit(100));
+  const q = query(collection(db, "attendance_records"), where("uid", "==", state.user.uid), limit(500));
   const snapshot = await getDocs(q);
-  state.records = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  state.records = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))).slice(0, 100);
 }
 function renderHistory() {
   const rows = $("history-rows");
@@ -129,10 +129,14 @@ function renderHistory() {
 async function loadRequests() {
   const manager = ["admin", "manager"].includes(state.profile?.role);
   const q = manager
-    ? query(collection(db, "attendance_adjustment_requests"), where("status", "==", "pending"), orderBy("createdAt", "desc"), limit(100))
-    : query(collection(db, "attendance_adjustment_requests"), where("uid", "==", state.user.uid), orderBy("createdAt", "desc"), limit(50));
+    ? query(collection(db, "attendance_adjustment_requests"), where("status", "==", "pending"), limit(100))
+    : query(collection(db, "attendance_adjustment_requests"), where("uid", "==", state.user.uid), limit(50));
   const snapshot = await getDocs(q);
-  state.requests = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  state.requests = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => {
+    const left = asDate(a.createdAt)?.getTime() || 0;
+    const right = asDate(b.createdAt)?.getTime() || 0;
+    return right - left;
+  });
   renderRequests();
 }
 function renderRequests() {
