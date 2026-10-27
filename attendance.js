@@ -52,7 +52,7 @@ async function loadSchedule() {
   $("schedule-end-input").value = state.schedule.endTime;
 }
 async function loadLeaveRequests() {
-  const manager = ["admin","manager"].includes(state.profile?.role);
+  const manager = taskRoleLevel(state.profile?.role) >= 2;
   const q = manager
     ? query(collection(db, "attendance_leave_requests"), limit(300))
     : query(collection(db, "attendance_leave_requests"), where("uid", "==", state.user.uid), limit(200));
@@ -600,7 +600,7 @@ async function loadTasks() {
 }
 $("task-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!["admin","manager"].includes(state.profile?.role)) return;
+  if (taskRoleLevel(state.profile?.role) < 2) return;
   const button = $("task-submit");
   button.disabled = true;
   $("task-feedback").textContent = "";
@@ -635,7 +635,7 @@ $("task-form").addEventListener("submit", async (event) => {
     button.disabled = false;
   }
 });
-$("task-open-employees").addEventListener("click", () => { if (state.profile?.role === "admin") showView("employees"); else toast("Quản lý nhân sự chỉ dành cho Admin. Bạn vẫn có thể chọn nhân sự trong danh sách."); });
+$("task-open-employees").addEventListener("click", () => { if (state.profile?.role === "admin") showView("employees"); else toast("Quản lý hồ sơ nhân sự chỉ dành cho Admin hệ thống."); });
 $("task-status-filter").addEventListener("change", renderTasks);
 $("task-refresh").addEventListener("click", () => loadTasks().catch(showError));
 async function loadSites() {
