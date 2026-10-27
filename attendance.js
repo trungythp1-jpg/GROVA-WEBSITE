@@ -52,17 +52,96 @@ async function loadSchedule() {
   $("schedule-end-input").value = state.schedule.endTime;
 }
 async function loadLeaveRequests() {
-  const q = query(collection(db, "attendance_leave_requests"), where("uid", "==", state.user.uid), limit(200));
+  const manager = ["admin","manager"].includes(state.profile?.role);
+  const q = manager
+    ? query(collection(db, "attendance_leave_requests"), limit(300))
+    : query(collection(db, "attendance_leave_requests"), where("uid", "==", state.user.uid), limit(200));
   const snapshot = await getDocs(q);
   state.leaveRequests = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
   renderLeaveBalances();
+  renderLeaveRequestLists();
+  renderAttendance();
+}
+function leaveTypeLabel(item) {
+  if (item.type === "early_leave") return "Về sớm " + Number(item.minutes || 0) + " phút";
+  if (item.type === "half_day") return "Nghỉ nửa ngày (" + (item.halfDayPeriod === "morning" ? "buổi sáng" : "buổi chiều") + ")";
+  return "Nghỉ phép nguyên ngày";
+}
+function renderLeaveRequestLists() {
+  const own = $("leave-own-list");
+  own.replaceChildren();
+  const mine = state.leaveRequests.filter((item) => item.uid === state.user?.uid).sort((a,b) => String(b.date).localeCompare(String(a.date)));
+  if (!mine.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Bạn chưa có đăng ký nghỉ hoặc về sớm.";
+    own.append(empty);
+  } else mine.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "leave-review-item";
+    const details = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = leaveTypeLabel(item);
+    const meta = document.createElement("p");
+    meta.textContent = item.date + " · " + item.reason;
+    details.append(title, meta);
+    const status = document.createElement("span");
+    status.className = "leave-status leave-status-" + item.status;
+    status.textContent = ({pending:"Chờ duyệt",approved:"Đã duyệt",rejected:"Từ chối"})[item.status] || item.status;
+    row.append(details,status);
+    own.append(row);
+  });
+  const manager = ["admin","manager"].includes(state.profile?.role);
+  $("leave-review-panel").style.display = manager ? "" : "none";
+  $("leave-own-panel").style.display = "";
+  const review = $("leave-review-list");
+  review.replaceChildren();
+  const pending = state.leaveRequests.filter((item) => item.status === "pending").sort((a,b) => String(a.date).localeCompare(String(b.date)));
+  if (!pending.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Không có đăng ký đang chờ duyệt.";
+    review.append(empty);
+  } else pending.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "leave-review-item";
+    const details = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = leaveTypeLabel(item) + " · " + item.displayName;
+    const meta = document.createElement("p");
+    meta.textContent = item.date + " · " + item.reason;
+    details.append(title,meta);
+    row.append(details);
+    if (manager) {
+      const actions = document.createElement("div");
+      actions.className = "leave-review-actions";
+      [["approved","Duyệt"],["rejected","Từ chối"]].forEach(([status,label]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = status === "approved" ? "solid-button" : "outline-button";
+        button.textContent = label;
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          try {
+            await updateDoc(doc(db,"attendance_leave_requests",item.id),{status,reviewedAt:serverTimestamp(),reviewedBy:state.user.uid,reviewNote:""});
+            await loadLeaveRequests();
+            toast(status === "approved" ? "Đã duyệt đăng ký." : "Đã từ chối đăng ký.");
+          } catch (error) { showError(error); }
+        });
+        actions.append(button);
+      });
+      row.append(actions);
+    }
+    review.append(row);
+  });
 }
 function renderLeaveBalances() {
+  const ownRequests = state.leaveRequests.filter((item) => item.uid === state.user?.uid);
   const year = Number(todayKey().slice(0,4));
   const month = todayKey().slice(0,7);
-  const approvedAnnual = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "annual_leave" && Number(String(item.date).slice(0,4)) === year).length;
-  const approvedHalf = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "half_day" && Number(String(item.date).slice(0,4)) === year).length;
-  const approvedEarly = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "early_leave" && String(item.date).startsWith(month));
+  const approvedAnnual = ownRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "annual_leave" && Number(String(item.date).slice(0,4)) === year).length;
+  const approvedHalf = ownRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "half_day" && Number(String(item.date).slice(0,4)) === year).length;
+  const approvedEarly = ownRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "early_leave" && String(item.date).startsWith(month));
   const usedMinutes = approvedEarly.reduce((sum,item) => sum + Number(item.minutes || 0),0);
   $("leave-balance").textContent = Math.max(0,12-approvedAnnual-approvedHalf*0.5) + " ngày";
   $("early-count-balance").textContent = Math.max(0,2-approvedEarly.length) + " lượt";
@@ -603,6 +682,7 @@ $("schedule-form").addEventListener("submit", async (event) => {
   } finally { button.disabled = false; }
 });
 $("leave-type").addEventListener("change", renderLeaveType);
+$("leave-refresh").addEventListener("click", () => loadLeaveRequests().catch(showError));
 $("leave-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!state.user) return;
