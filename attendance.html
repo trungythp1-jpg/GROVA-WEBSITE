@@ -25,8 +25,8 @@
 <div class="sidebar-bottom"><span class="status-dot"></span><span>Giao diện thử nghiệm</span><span class="version">PREVIEW</span></div>
 </aside>
 <main class="main">
-<header class="topbar"><div><span class="breadcrumb">GROVA / NHÂN SỰ /</span><strong id="page-heading">CHẤM CÔNG</strong></div><div class="top-actions"><span class="preview-pill">BẢN XEM TRƯỚC</span><button class="avatar" aria-label="Tài khoản">TT</button></div></header>
-<div class="notice"><span class="notice-icon">i</span><span><strong>Chế độ xem trước.</strong> Dữ liệu hiển thị là dữ liệu mẫu. Chưa kết nối Firebase và chưa ghi nhận chấm công thật.</span></div>
+<header class="topbar"><div><span class="breadcrumb">GROVA / NHÂN SỰ /</span><strong id="page-heading">CHẤM CÔNG</strong></div><div class="top-actions"><button class="outline-button" id="logout-button" type="button">Đăng xuất</button><button class="avatar" aria-label="Tài khoản">TT</button></div></header>
+<div class="notice"><span class="notice-icon">i</span><span><strong>Chấm công có xác thực.</strong> Chỉ tài khoản được quản trị viên kích hoạt mới có thể sử dụng.</span></div>
 <section class="view active" id="view-today">
 <div class="page-intro"><div><p class="eyebrow">THỨ BA · <span id="today-date"></span></p><h1>Chào buổi sáng, Trung <span class="wave">✳</span></h1><p class="muted">Sẵn sàng cho một ngày làm việc hiệu quả?</p></div><div class="live-time"><span class="live-dot"></span><span id="clock">--:--:--</span><small>GIỜ VIỆT NAM</small></div></div>
 <div class="summary-grid"><article class="summary-card"><span class="card-label">TRẠNG THÁI HÔM NAY</span><div class="status-line"><span class="status-badge pending" id="attendance-status">Chưa chấm công</span></div><small id="status-caption">Bắt đầu bằng thao tác vào ca</small></article><article class="summary-card"><span class="card-label">GIỜ VÀO</span><strong class="metric" id="clock-in-value">--:--</strong><small>Ghi nhận khi vào ca</small></article><article class="summary-card"><span class="card-label">GIỜ RA</span><strong class="metric" id="clock-out-value">--:--</strong><small>Ghi nhận khi kết thúc ca</small></article><article class="summary-card"><span class="card-label">THỜI GIAN LÀM VIỆC</span><strong class="metric" id="duration-value">--</strong><small>Tính theo thời gian thực tế</small></article></div>
@@ -42,6 +42,6 @@
 </main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="attendance.js" defer></script>
+<script type="module" src="attendance.js"></script>
 </body>
 </html>
