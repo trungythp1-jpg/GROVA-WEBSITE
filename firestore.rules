@@ -45,7 +45,7 @@ service cloud.firestore {
     }
     match /attendance_users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow list: if isAdmin();
+      allow list: if isManager();
       allow create, update, delete: if false;
     }
     match /attendance_sites/{siteId} {
@@ -98,6 +98,7 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
       allow read: if activeUser() && (resource.data.uid == request.auth.uid || isManager());
       allow update: if isManager()
+        && resource.data.status == 'pending'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewNote'])
         && request.resource.data.status in ['approved', 'rejected']
         && request.resource.data.reviewedAt == request.time
