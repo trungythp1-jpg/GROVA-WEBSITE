@@ -44,7 +44,7 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /attendance_users/{uid} {
-      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow get: if signedIn() && (request.auth.uid == uid || isManager());
       allow list: if isManager();
       allow create: if isAdmin()
         && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'role', 'active'])
@@ -106,6 +106,34 @@ service cloud.firestore {
         && request.resource.data.clockOutLocation.latitude is number
         && request.resource.data.clockOutLocation.longitude is number
         && request.resource.data.clockOutLocation.accuracy is number;
+      allow delete: if isAdmin();
+    }
+    match /workspace_tasks/{taskId} {
+      allow create: if isManager()
+        && request.resource.data.keys().hasAll(['title', 'description', 'assigneeUid', 'assigneeName', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['title', 'description', 'assigneeUid', 'assigneeName', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 1
+        && request.resource.data.title.size() <= 160
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 3000
+        && request.resource.data.assigneeUid is string
+        && request.resource.data.assigneeName is string
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName is string
+        && request.resource.data.status == 'todo'
+        && request.resource.data.priority in ['normal', 'high', 'urgent']
+        && request.resource.data.dueDate is string
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && exists(/databases/$(database)/documents/attendance_users/$(request.resource.data.assigneeUid))
+        && get(/databases/$(database)/documents/attendance_users/$(request.resource.data.assigneeUid)).data.active == true;
+      allow read: if activeUser() && (isManager() || resource.data.assigneeUid == request.auth.uid);
+      allow update: if activeUser()
+        && (isManager() || resource.data.assigneeUid == request.auth.uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && request.resource.data.status in ['todo', 'in_progress', 'done']
+        && request.resource.data.updatedAt == request.time;
       allow delete: if isAdmin();
     }
     match /attendance_adjustment_requests/{requestId} {
