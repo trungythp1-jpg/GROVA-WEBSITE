@@ -377,11 +377,7 @@ $("clock-in").addEventListener("click", async () => {
     if (state.recordId || state.clockIn) throw new Error("Bạn đã chấm công vào ca hôm nay.");
     if (state.location.accuracy > 100) throw new Error("GPS chưa đủ chính xác (trên 100 m). Hãy thử lại ngoài trời.");
     const recordRef = doc(db, "attendance_records", state.user.uid + "_" + todayKey());
-    await runTransaction(db, async (transaction) => {
-      const existing = await transaction.get(recordRef);
-      if (existing.exists()) throw new Error("Bạn đã có bản ghi chấm công hôm nay.");
-      transaction.set(recordRef, { uid: state.user.uid, date: todayKey(), siteId: site.id, siteName: site.name || "", clockInAt: serverTimestamp(), clockInLocation: state.location, clockOutAt: null, clockOutLocation: null, createdAt: serverTimestamp() });
-    });
+    await setDoc(recordRef, { uid: state.user.uid, date: todayKey(), siteId: site.id, siteName: site.name || "", clockInAt: serverTimestamp(), clockInLocation: state.location, clockOutAt: null, clockOutLocation: null, createdAt: serverTimestamp() });
     state.recordId = recordRef.id;
     await loadToday();
     feedback("Đã ghi nhận giờ vào trên hệ thống.");
