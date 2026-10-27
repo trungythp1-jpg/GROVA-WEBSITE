@@ -284,10 +284,13 @@ function getLocation() {
 async function requireLocationAndSite() {
   if (!state.location) throw new Error("Hãy lấy vị trí GPS trước khi chấm công.");
   const snapshot = await getDocs(query(collection(db, "attendance_sites"), where("active", "==", true)));
-  const sites = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-  const site = sites.find((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude) && distanceMeters(state.location, item) <= Number(item.radiusMeters || 150));
-  if (!site) throw new Error("Bạn đang ngoài bán kính địa điểm chấm công được phép.");
-  return site;
+  const sites = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).filter((site) => Number.isFinite(site.latitude) && Number.isFinite(site.longitude));
+  if (!sites.length) throw new Error("Chưa có địa điểm chấm công hoạt động trong Firebase. Vào mục Địa điểm chấm công để thêm Văn phòng GROVA (20.841202, 106.666418; bán kính 150 m).");
+  const ranked = sites.map((site) => ({ site, distance: Math.round(distanceMeters(state.location, site)), radius: Number(site.radiusMeters || 150) })).sort((a, b) => a.distance - b.distance);
+  const match = ranked.find((item) => item.distance <= item.radius);
+  if (match) return match.site;
+  const nearest = ranked[0];
+  throw new Error("Vị trí cách địa điểm gần nhất “" + (nearest.site.name || "Địa điểm") + "” khoảng " + nearest.distance + " m; bán kính cho phép " + nearest.radius + " m. Kiểm tra tọa độ địa điểm trong mục Địa điểm chấm công.");
 }
 $("clock-in").addEventListener("click", async () => {
   if (!state.user) return;
