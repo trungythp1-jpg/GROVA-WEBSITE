@@ -59,8 +59,8 @@ service cloud.firestore {
         && request.resource.data.role in ['employee', 'manager', 'admin']
         && request.resource.data.active is bool;
       allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'email', 'department', 'role', 'active'])
         && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'role', 'active'])
-        && request.resource.data.keys().hasOnly(['displayName', 'email', 'department', 'role', 'active'])
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() >= 1
         && request.resource.data.displayName.size() <= 120
