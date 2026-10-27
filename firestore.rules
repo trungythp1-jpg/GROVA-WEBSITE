@@ -16,6 +16,18 @@ service cloud.firestore {
     function isManager() {
       return activeUser() && userProfile().role in ['admin', 'manager'];
     }
+    function roleLevel(role) {
+      return role == 'admin' ? 6
+        : role == 'executive_director' ? 5
+        : role == 'department_head' ? 4
+        : role == 'manager' ? 3
+        : role == 'team_lead' ? 2
+        : role == 'employee' ? 1
+        : 0;
+    }
+    function taskAssigneeLevel(uid) {
+      return roleLevel(get(/databases/$(database)/documents/attendance_users/$(uid)).data.role);
+    }
     match /website_leads/{leadId} {
       allow create: if request.resource.data.keys().hasAll(['name', 'phone', 'email', 'need', 'consent', 'source', 'createdAt'])
         && request.resource.data.keys().hasOnly(['name', 'phone', 'email', 'need', 'consent', 'source', 'createdAt'])
@@ -56,7 +68,7 @@ service cloud.firestore {
         && request.resource.data.email.size() <= 254
         && request.resource.data.department is string
         && request.resource.data.department.size() <= 100
-        && request.resource.data.role in ['employee', 'manager', 'admin']
+        && request.resource.data.role in ['employee', 'team_lead', 'manager', 'department_head', 'executive_director', 'admin']
         && request.resource.data.active is bool;
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'email', 'department', 'role', 'active'])
@@ -68,7 +80,7 @@ service cloud.firestore {
         && request.resource.data.email.size() <= 254
         && request.resource.data.department is string
         && request.resource.data.department.size() <= 100
-        && request.resource.data.role in ['employee', 'manager', 'admin']
+        && request.resource.data.role in ['employee', 'team_lead', 'manager', 'department_head', 'executive_director', 'admin']
         && request.resource.data.active is bool;
       allow delete: if false;
     }
@@ -98,7 +110,7 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /workspace_tasks/{taskId} {
-      allow create: if isManager()
+      allow create: if activeUser()
         && request.resource.data.keys().hasAll(['title', 'description', 'assigneeUid', 'assigneeName', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
         && request.resource.data.keys().hasOnly(['title', 'description', 'assigneeUid', 'assigneeName', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
         && request.resource.data.title is string
@@ -107,9 +119,11 @@ service cloud.firestore {
         && request.resource.data.description is string
         && request.resource.data.description.size() <= 3000
         && request.resource.data.assigneeUid is string
+        && request.resource.data.assigneeUid != request.auth.uid
         && request.resource.data.assigneeName is string
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdByName is string
+        && roleLevel(userProfile().role) > taskAssigneeLevel(request.resource.data.assigneeUid)
         && request.resource.data.status == 'todo'
         && request.resource.data.priority in ['normal', 'high', 'urgent']
         && request.resource.data.dueDate is string
@@ -117,9 +131,9 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && exists(/databases/$(database)/documents/attendance_users/$(request.resource.data.assigneeUid))
         && get(/databases/$(database)/documents/attendance_users/$(request.resource.data.assigneeUid)).data.active == true;
-      allow read: if activeUser() && (isManager() || resource.data.assigneeUid == request.auth.uid);
+      allow read: if activeUser() && (resource.data.assigneeUid == request.auth.uid || roleLevel(userProfile().role) > taskAssigneeLevel(resource.data.assigneeUid));
       allow update: if activeUser()
-        && (isManager() || resource.data.assigneeUid == request.auth.uid)
+        && (resource.data.assigneeUid == request.auth.uid || roleLevel(userProfile().role) > taskAssigneeLevel(resource.data.assigneeUid))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
         && request.resource.data.status in ['todo', 'in_progress', 'done']
         && request.resource.data.updatedAt == request.time;

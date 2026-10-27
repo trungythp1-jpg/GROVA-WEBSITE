@@ -52,7 +52,7 @@ async function loadSchedule() {
   $("schedule-end-input").value = state.schedule.endTime;
 }
 async function loadLeaveRequests() {
-  const manager = ["admin","manager"].includes(state.profile?.role);
+  const manager = taskRoleLevel(state.profile?.role) >= 2;
   const q = manager
     ? query(collection(db, "attendance_leave_requests"), limit(300))
     : query(collection(db, "attendance_leave_requests"), where("uid", "==", state.user.uid), limit(200));
@@ -486,6 +486,7 @@ function renderEmployees() {
   });
   $("employee-admin-search").dispatchEvent(new Event("input"));
 }
+function taskRoleLevel(role) { return ({ employee: 1, team_lead: 2, manager: 3, department_head: 4, executive_director: 5, admin: 6 })[role] || 0; }
 function taskStatusLabel(status) {
   return ({ todo: "Mới giao", in_progress: "Đang thực hiện", done: "Hoàn thành" })[status] || "Mới giao";
 }
@@ -537,7 +538,9 @@ function renderTasks() {
       status.append(option);
     });
     status.value = task.status || "todo";
-    status.disabled = task.assigneeUid !== state.user.uid && !["admin","manager"].includes(state.profile?.role);
+    const assignedEmployee = state.employees.find((employee) => employee.id === task.assigneeUid);
+    const canManageTask = taskRoleLevel(state.profile?.role) > taskRoleLevel(assignedEmployee?.role || "employee");
+    status.disabled = task.assigneeUid !== state.user.uid && !canManageTask;
     status.addEventListener("change", async () => {
       status.disabled = true;
       try {
@@ -560,7 +563,7 @@ async function loadTaskAssignees() {
   const select = $("task-assignee");
   const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
   const employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
-    .filter((employee) => employee.active === true);
+    .filter((employee) => employee.active === true && taskRoleLevel(state.profile?.role) > taskRoleLevel(employee.role) && employee.id !== state.user?.uid);
   if (state.profile?.active === true && state.user?.uid && !employees.some((employee) => employee.id === state.user.uid)) {
     employees.push({
       id: state.user.uid,
@@ -597,7 +600,7 @@ async function loadTasks() {
 }
 $("task-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!["admin","manager"].includes(state.profile?.role)) return;
+  if (taskRoleLevel(state.profile?.role) < 2) return;
   const button = $("task-submit");
   button.disabled = true;
   $("task-feedback").textContent = "";
@@ -632,7 +635,7 @@ $("task-form").addEventListener("submit", async (event) => {
     button.disabled = false;
   }
 });
-$("task-open-employees").addEventListener("click", () => { if (state.profile?.role === "admin") showView("employees"); else toast("Quản lý nhân sự chỉ dành cho Admin. Bạn vẫn có thể chọn nhân sự trong danh sách."); });
+$("task-open-employees").addEventListener("click", () => { if (state.profile?.role === "admin") showView("employees"); else toast("Quản lý hồ sơ nhân sự chỉ dành cho Admin hệ thống."); });
 $("task-status-filter").addEventListener("change", renderTasks);
 $("task-refresh").addEventListener("click", () => loadTasks().catch(showError));
 async function loadSites() {
