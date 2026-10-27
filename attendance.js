@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, setDoc, runTransaction, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, setDoc, runTransaction, updateDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
@@ -324,21 +324,44 @@ function renderRequests() {
   });
 }
 async function reviewRequest(request, status) {
+  if (!["admin", "manager"].includes(state.profile?.role) || request.status !== "pending") return;
   const reviewNote = window.prompt(status === "approved" ? "Ghi chú duyệt (có thể để trống):" : "Lý do từ chối:");
   if (reviewNote === null) return;
-  if (status === "rejected" && reviewNote.trim().length < 3) {
-    toast("Vui lòng nhập lý do từ chối.");
-    return;
-  }
+  if (status === "rejected" && reviewNote.trim().length < 3) { toast("Vui lòng nhập lý do từ chối."); return; }
   try {
-    await updateDoc(doc(db, "attendance_adjustment_requests", request.id), {
-      status,
-      reviewedAt: serverTimestamp(),
-      reviewedBy: state.user.uid,
-      reviewNote: reviewNote.trim()
+    const requestRef = doc(db, "attendance_adjustment_requests", request.id);
+    const recordRef = doc(db, "attendance_records", request.uid + "_" + request.date);
+    await runTransaction(db, async (transaction) => {
+      const latest = await transaction.get(requestRef);
+      if (!latest.exists() || latest.data().status !== "pending") throw new Error("Phiếu đã được xử lý hoặc không còn tồn tại.");
+      const data = latest.data();
+      if (status === "approved") {
+        const existing = await transaction.get(recordRef);
+        const toTimestamp = (value) => {
+          if (!value) return null;
+          const parts = value.split(":").map(Number);
+          if (parts.length !== 2 || parts.some((part) => !Number.isFinite(part))) throw new Error("Giờ đề nghị không hợp lệ.");
+          const [year, month, day] = data.date.split("-").map(Number);
+          return Timestamp.fromDate(new Date(year, month - 1, day, parts[0], parts[1], 0, 0));
+        };
+        const clockInAt = toTimestamp(data.requestedClockIn), clockOutAt = toTimestamp(data.requestedClockOut);
+        if (!clockInAt && !clockOutAt) throw new Error("Phiếu chưa có giờ vào hoặc giờ ra đề nghị.");
+        const prior = existing.exists() ? existing.data() : null;
+        const audit = { adjustmentRequestId: request.id, adjustmentNote: reviewNote.trim(), adjustedBy: state.user.uid, adjustedAt: serverTimestamp(), originalClockInAt: prior?.originalClockInAt || prior?.clockInAt || null, originalClockOutAt: prior?.originalClockOutAt || prior?.clockOutAt || null };
+        if (prior) {
+          const changes = { ...audit };
+          if (clockInAt) changes.clockInAt = clockInAt;
+          if (clockOutAt) changes.clockOutAt = clockOutAt;
+          transaction.update(recordRef, changes);
+        } else {
+          transaction.set(recordRef, { uid: data.uid, date: data.date, siteId: "admin-adjustment", siteName: "Điều chỉnh bởi quản lý", clockInAt, clockOutAt, clockInLocation: null, clockOutLocation: null, createdAt: serverTimestamp(), adminAdjusted: true, ...audit });
+        }
+      }
+      transaction.update(requestRef, { status, reviewedAt: serverTimestamp(), reviewedBy: state.user.uid, reviewNote: reviewNote.trim(), ...(status === "approved" ? { appliedRecordId: request.uid + "_" + request.date, appliedAt: serverTimestamp() } : {}) });
     });
-    await loadRequests();
-    toast(status === "approved" ? "Đã duyệt yêu cầu." : "Đã từ chối yêu cầu.");
+    await Promise.all([loadRequests(), loadToday(), loadHistory()]);
+    await loadOverview();
+    toast(status === "approved" ? "Đã duyệt và cập nhật bảng chấm công." : "Đã từ chối yêu cầu.");
   } catch (error) { showError(error); }
 }
 async function loadOverview() {
