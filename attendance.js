@@ -7,7 +7,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
-const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null };
+const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null };
 const fmtTime = (date) => date ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date) : "--:--";
 const fmtDate = (date) => new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Ho_Chi_Minh" }).format(date);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
@@ -28,21 +28,159 @@ function updateClock() {
   $("clock").textContent = new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(now);
   $("today-date").textContent = fmtDate(now).toLocaleUpperCase("vi-VN");
 }
+function timeToMinutes(value) {
+  const [hours, minutes] = String(value || "00:00").split(":").map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
+}
+function currentVietnamMinutes() {
+  const parts = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(new Date()).split(":").map(Number);
+  return parts[0] * 60 + parts[1];
+}
+function vietnamMinutesForDate(date) {
+  const parts = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date).split(":").map(Number);
+  return parts[0] * 60 + parts[1];
+}
+async function loadSchedule() {
+  const snapshot = await getDoc(doc(db, "attendance_settings", "schedule"));
+  if (snapshot.exists()) {
+    const data = snapshot.data();
+    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(data.startTime || "") && /^([01]\d|2[0-3]):[0-5]\d$/.test(data.endTime || "") && timeToMinutes(data.endTime) > timeToMinutes(data.startTime)) {
+      state.schedule = { startTime: data.startTime, endTime: data.endTime };
+    }
+  }
+  $("schedule-start-input").value = state.schedule.startTime;
+  $("schedule-end-input").value = state.schedule.endTime;
+}
+async function loadLeaveRequests() {
+  const manager = ["admin","manager"].includes(state.profile?.role);
+  const q = manager
+    ? query(collection(db, "attendance_leave_requests"), limit(300))
+    : query(collection(db, "attendance_leave_requests"), where("uid", "==", state.user.uid), limit(200));
+  const snapshot = await getDocs(q);
+  state.leaveRequests = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  renderLeaveBalances();
+  renderLeaveRequestLists();
+  renderAttendance();
+}
+function leaveTypeLabel(item) {
+  if (item.type === "early_leave") return "Về sớm " + Number(item.minutes || 0) + " phút";
+  if (item.type === "half_day") return "Nghỉ nửa ngày (" + (item.halfDayPeriod === "morning" ? "buổi sáng" : "buổi chiều") + ")";
+  return "Nghỉ phép nguyên ngày";
+}
+function renderLeaveRequestLists() {
+  const own = $("leave-own-list");
+  own.replaceChildren();
+  const mine = state.leaveRequests.filter((item) => item.uid === state.user?.uid).sort((a,b) => String(b.date).localeCompare(String(a.date)));
+  if (!mine.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Bạn chưa có đăng ký nghỉ hoặc về sớm.";
+    own.append(empty);
+  } else mine.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "leave-review-item";
+    const details = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = leaveTypeLabel(item);
+    const meta = document.createElement("p");
+    meta.textContent = item.date + " · " + item.reason;
+    details.append(title, meta);
+    const status = document.createElement("span");
+    status.className = "leave-status leave-status-" + item.status;
+    status.textContent = ({pending:"Chờ duyệt",approved:"Đã duyệt",rejected:"Từ chối"})[item.status] || item.status;
+    row.append(details,status);
+    own.append(row);
+  });
+  const manager = ["admin","manager"].includes(state.profile?.role);
+  $("leave-review-panel").style.display = manager ? "" : "none";
+  $("leave-own-panel").style.display = "";
+  const review = $("leave-review-list");
+  review.replaceChildren();
+  const pending = state.leaveRequests.filter((item) => item.status === "pending").sort((a,b) => String(a.date).localeCompare(String(b.date)));
+  if (!pending.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Không có đăng ký đang chờ duyệt.";
+    review.append(empty);
+  } else pending.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "leave-review-item";
+    const details = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = leaveTypeLabel(item) + " · " + item.displayName;
+    const meta = document.createElement("p");
+    meta.textContent = item.date + " · " + item.reason;
+    details.append(title,meta);
+    row.append(details);
+    if (manager) {
+      const actions = document.createElement("div");
+      actions.className = "leave-review-actions";
+      [["approved","Duyệt"],["rejected","Từ chối"]].forEach(([status,label]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = status === "approved" ? "solid-button" : "outline-button";
+        button.textContent = label;
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          try {
+            await updateDoc(doc(db,"attendance_leave_requests",item.id),{status,reviewedAt:serverTimestamp(),reviewedBy:state.user.uid,reviewNote:""});
+            await loadLeaveRequests();
+            toast(status === "approved" ? "Đã duyệt đăng ký." : "Đã từ chối đăng ký.");
+          } catch (error) { showError(error); }
+        });
+        actions.append(button);
+      });
+      row.append(actions);
+    }
+    review.append(row);
+  });
+}
+function renderLeaveBalances() {
+  const ownRequests = state.leaveRequests.filter((item) => item.uid === state.user?.uid);
+  const year = Number(todayKey().slice(0,4));
+  const month = todayKey().slice(0,7);
+  const approvedAnnual = ownRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "annual_leave" && Number(String(item.date).slice(0,4)) === year).length;
+  const approvedHalf = ownRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "half_day" && Number(String(item.date).slice(0,4)) === year).length;
+  const approvedEarly = ownRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "early_leave" && String(item.date).startsWith(month));
+  const usedMinutes = approvedEarly.reduce((sum,item) => sum + Number(item.minutes || 0),0);
+  $("leave-balance").textContent = Math.max(0,12-approvedAnnual-approvedHalf*0.5) + " ngày";
+  $("early-count-balance").textContent = Math.max(0,2-approvedEarly.length) + " lượt";
+  $("early-minute-balance").textContent = Math.max(0,60-usedMinutes) + " phút";
+}
+function renderLeaveType() {
+  const type = $("leave-type").value;
+  $("early-leave-fields").hidden = type !== "early_leave";
+  $("half-day-fields").hidden = type !== "half_day";
+}
 function durationText() {
   if (!state.clockIn) return "--";
   const end = state.clockOut || new Date();
   const minutes = Math.max(0, Math.floor((end - state.clockIn) / 60000));
   return Math.floor(minutes / 60) + "h " + String(minutes % 60).padStart(2, "0") + "m";
 }
+function updateClockOutAvailability() {
+  const endMinutes = timeToMinutes(state.schedule.endTime);
+  const approvedEarlyLeave = state.leaveRequests.find((item) => item.uid === state.user?.uid && item.date === todayKey() && item.type === "early_leave" && item.status === "approved");
+  const allowedAt = approvedEarlyLeave ? endMinutes - Number(approvedEarlyLeave.minutes || 0) : endMinutes;
+  $("clock-out").disabled = !state.user || !state.clockIn || Boolean(state.clockOut) || currentVietnamMinutes() < allowedAt;
+}
 function renderAttendance() {
   $("clock-in-value").textContent = fmtTime(state.clockIn);
   $("clock-out-value").textContent = fmtTime(state.clockOut);
   $("duration-value").textContent = durationText();
+  const nowMinutes = currentVietnamMinutes();
+  const startMinutes = timeToMinutes(state.schedule.startTime);
+  const endMinutes = timeToMinutes(state.schedule.endTime);
+  const late = Boolean(state.clockIn && vietnamMinutesForDate(state.clockIn) > startMinutes);
   $("clock-in").disabled = !state.user || Boolean(state.clockIn);
-  $("clock-out").disabled = !state.user || !state.clockIn || Boolean(state.clockOut);
+  updateClockOutAvailability();
+  $("schedule-hours").textContent = state.schedule.startTime + " – " + state.schedule.endTime;
+  $("schedule-message").textContent = late ? "Bạn đã vào ca muộn so với giờ bắt đầu " + state.schedule.startTime + "." : "Chấm công sau " + state.schedule.startTime + " sẽ được ghi nhận đi muộn.";
+  const adminPanel = $("schedule-admin-panel");
+  if (adminPanel) adminPanel.style.display = state.profile?.role === "admin" ? "" : "none";
   const status = $("attendance-status");
-  status.className = "status-badge " + (state.clockOut ? "good" : "pending");
-  status.textContent = state.clockOut ? "Đã hoàn thành" : state.clockIn ? "Đang làm việc" : "Chưa chấm công";
+  status.className = "status-badge " + (state.clockOut ? "good" : late ? "late" : "pending");
+  status.textContent = state.clockOut ? "Đã hoàn thành" : late ? "Đi muộn" : state.clockIn ? "Đang làm việc" : "Chưa chấm công";
   $("status-caption").textContent = state.clockOut ? "Đã ghi nhận vào ca và tan ca" : state.clockIn ? "Bạn đã bắt đầu ca làm việc" : "Bắt đầu bằng thao tác vào ca";
   $("timeline-in").classList.toggle("done", Boolean(state.clockIn));
   $("timeline-out").classList.toggle("done", Boolean(state.clockOut));
@@ -522,6 +660,99 @@ $("locate").addEventListener("click", getLocation);
 document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
 document.querySelectorAll("[data-go]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.go)));
 $("filter-history").addEventListener("click", renderHistory);
+$("schedule-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (state.profile?.role !== "admin") return;
+  const startTime = $("schedule-start-input").value;
+  const endTime = $("schedule-end-input").value;
+  if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+    $("schedule-feedback").textContent = "Giờ kết thúc phải sau giờ bắt đầu.";
+    $("schedule-feedback").className = "feedback error";
+    return;
+  }
+  const button = $("schedule-save");
+  button.disabled = true;
+  try {
+    await setDoc(doc(db, "attendance_settings", "schedule"), { startTime, endTime, updatedAt: serverTimestamp(), updatedBy: state.user.uid });
+    state.schedule = { startTime, endTime };
+    renderAttendance();
+    $("schedule-feedback").textContent = "Đã lưu giờ làm việc mới.";
+    $("schedule-feedback").className = "feedback";
+    toast("Đã cập nhật giờ làm việc.");
+  } catch (error) {
+    $("schedule-feedback").textContent = error.message || "Không lưu được giờ làm việc.";
+    $("schedule-feedback").className = "feedback error";
+  } finally { button.disabled = false; }
+});
+$("leave-type").addEventListener("change", renderLeaveType);
+$("leave-refresh").addEventListener("click", () => loadLeaveRequests().catch(showError));
+$("leave-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!state.user) return;
+  const type = $("leave-type").value;
+  const date = $("leave-date").value;
+  const reason = $("leave-reason").value.trim();
+  if (reason.length < 5) {
+    $("leave-feedback").textContent = "Vui lòng nhập lý do ít nhất 5 ký tự.";
+    $("leave-feedback").className = "feedback error";
+    return;
+  }
+  if (date < todayKey()) {
+    $("leave-feedback").textContent = "Ngày đăng ký không được ở trong quá khứ.";
+    $("leave-feedback").className = "feedback error";
+    return;
+  }
+  const year = Number(date.slice(0,4));
+  const month = date.slice(0,7);
+  const yearRequests = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && Number(String(item.date).slice(0,4)) === year);
+  const monthEarly = state.leaveRequests.filter((item) => ["approved","pending"].includes(item.status) && item.type === "early_leave" && String(item.date).startsWith(month));
+  let minutes = 0;
+  let halfDayPeriod = "";
+  if (type === "early_leave") {
+    minutes = Number($("leave-minutes").value);
+    const usedMinutes = monthEarly.reduce((sum,item) => sum + Number(item.minutes || 0),0);
+    if (monthEarly.length >= 2 || usedMinutes + minutes > 60) {
+      $("leave-feedback").textContent = "Vượt hạn mức về sớm: tối đa 2 lượt và tổng cộng 60 phút mỗi tháng, tính cả yêu cầu đang chờ.";
+      $("leave-feedback").className = "feedback error";
+      return;
+    }
+  } else {
+    const usedLeave = yearRequests.reduce((sum,item) => sum + (item.type === "annual_leave" ? 1 : item.type === "half_day" ? 0.5 : 0),0);
+    const cost = type === "annual_leave" ? 1 : 0.5;
+    if (usedLeave + cost > 12) {
+      $("leave-feedback").textContent = "Bạn đã dùng hoặc đăng ký hết hạn mức 12 ngày phép năm.";
+      $("leave-feedback").className = "feedback error";
+      return;
+    }
+    if (type === "half_day") halfDayPeriod = $("half-day-period").value;
+  }
+  const button = $("leave-submit");
+  button.disabled = true;
+  try {
+    await addDoc(collection(db, "attendance_leave_requests"), {
+      uid: state.user.uid,
+      displayName: state.profile.displayName || state.user.email || "",
+      type,
+      date,
+      minutes,
+      halfDayPeriod,
+      reason,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await loadLeaveRequests();
+    event.target.reset();
+    $("leave-date").value = todayKey();
+    renderLeaveType();
+    $("leave-feedback").textContent = "Đã gửi đăng ký, đang chờ quản lý xem xét.";
+    $("leave-feedback").className = "feedback";
+    toast("Đã gửi đăng ký.");
+  } catch (error) {
+    $("leave-feedback").textContent = error.message || "Không gửi được đăng ký.";
+    $("leave-feedback").className = "feedback error";
+  } finally { button.disabled = false; }
+});
 $("request-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!state.user) return;
@@ -531,6 +762,8 @@ $("request-form").addEventListener("submit", async (event) => {
     await addDoc(collection(db, "attendance_adjustment_requests"), { uid: state.user.uid, date: $("request-date").value, requestedClockIn: $("request-in").value, requestedClockOut: $("request-out").value, reason, status: "pending", createdAt: serverTimestamp() });
     event.target.reset();
     $("request-date").value = todayKey();
+$("leave-date").value = todayKey();
+renderLeaveType();
     await loadRequests();
     toast("Đã gửi yêu cầu điều chỉnh");
   } catch (error) { showError(error); }
@@ -647,6 +880,7 @@ onAuthStateChanged(auth, async (user) => {
     $("task-create-panel").style.display = admin ? "" : "none";
     const title = $("view-today").querySelector("h1");
     title.textContent = "Xin chào, " + (state.profile.displayName || user.displayName || user.email);
+    await Promise.all([loadSchedule(), loadLeaveRequests()]);
     await Promise.all([loadToday(), loadHistory()]);
     renderHistory();
     await loadRequests();
@@ -657,7 +891,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 updateClock();
-setInterval(() => { updateClock(); if (state.clockIn && !state.clockOut) $("duration-value").textContent = durationText(); }, 1000);
+setInterval(() => { updateClock(); updateClockOutAvailability(); if (state.clockIn && !state.clockOut) $("duration-value").textContent = durationText(); }, 1000);
 $("request-date").value = todayKey();
 
 $("logout-button").addEventListener("click", () => signOut(auth));
