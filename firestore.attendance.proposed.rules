@@ -55,7 +55,14 @@ service cloud.firestore {
     match /attendance_records/{recordId} {
       allow create: if activeUser()
         && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasAll(['uid', 'date', 'siteId', 'siteName', 'clockInAt', 'clockInLocation', 'clockOutAt', 'clockOutLocation', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'date', 'siteId', 'siteName', 'clockInAt', 'clockInLocation', 'clockOutAt', 'clockOutLocation', 'createdAt'])
         && request.resource.data.date is string
+        && request.resource.data.siteId is string
+        && request.resource.data.siteName is string
+        && request.resource.data.clockOutAt == null
+        && request.resource.data.clockOutLocation == null
+        && request.resource.data.createdAt == request.time
         && request.resource.data.clockInAt == request.time
         && request.resource.data.clockInLocation.latitude is number
         && request.resource.data.clockInLocation.longitude is number
@@ -68,6 +75,9 @@ service cloud.firestore {
         && request.resource.data.date == resource.data.date
         && request.resource.data.clockInAt == resource.data.clockInAt
         && request.resource.data.clockInLocation == resource.data.clockInLocation
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clockOutAt', 'clockOutLocation', 'clockOutSiteId', 'clockOutSiteName'])
+        && request.resource.data.clockOutSiteId is string
+        && request.resource.data.clockOutSiteName is string
         && request.resource.data.clockOutAt == request.time
         && request.resource.data.clockOutLocation.latitude is number
         && request.resource.data.clockOutLocation.longitude is number
@@ -77,6 +87,11 @@ service cloud.firestore {
     match /attendance_adjustment_requests/{requestId} {
       allow create: if activeUser()
         && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasAll(['uid', 'date', 'requestedClockIn', 'requestedClockOut', 'reason', 'status', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'date', 'requestedClockIn', 'requestedClockOut', 'reason', 'status', 'createdAt'])
+        && request.resource.data.date is string
+        && request.resource.data.requestedClockIn is string
+        && request.resource.data.requestedClockOut is string
         && request.resource.data.reason is string
         && request.resource.data.reason.size() >= 5
         && request.resource.data.status == 'pending'
@@ -85,7 +100,10 @@ service cloud.firestore {
       allow update: if isManager()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewNote'])
         && request.resource.data.status in ['approved', 'rejected']
-        && request.resource.data.reviewedBy == request.auth.uid;
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewNote is string
+        && request.resource.data.reviewNote.size() <= 1000;
       allow delete: if isAdmin();
     }
   }
