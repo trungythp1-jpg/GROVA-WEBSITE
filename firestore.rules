@@ -77,35 +77,9 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     match /attendance_records/{recordId} {
-      allow create: if activeUser()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasAll(['uid', 'date', 'siteId', 'siteName', 'clockInAt', 'clockInLocation', 'clockOutAt', 'clockOutLocation', 'createdAt'])
-        && request.resource.data.keys().hasOnly(['uid', 'date', 'siteId', 'siteName', 'clockInAt', 'clockInLocation', 'clockOutAt', 'clockOutLocation', 'createdAt'])
-        && request.resource.data.date is string
-        && request.resource.data.siteId is string
-        && request.resource.data.siteName is string
-        && request.resource.data.clockOutAt == null
-        && request.resource.data.clockOutLocation == null
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.clockInAt == request.time
-        && request.resource.data.clockInLocation.latitude is number
-        && request.resource.data.clockInLocation.longitude is number
-        && request.resource.data.clockInLocation.accuracy is number;
+      allow create: if (activeUser() && request.resource.data.uid == request.auth.uid && request.resource.data.keys().hasAll(['uid', 'date', 'siteId', 'siteName', 'clockInAt', 'clockInLocation', 'clockOutAt', 'clockOutLocation', 'createdAt']) && request.resource.data.keys().hasOnly(['uid', 'date', 'siteId', 'siteName', 'clockInAt', 'clockInLocation', 'clockOutAt', 'clockOutLocation', 'createdAt']) && request.resource.data.date is string && request.resource.data.siteId is string && request.resource.data.siteName is string && request.resource.data.clockOutAt == null && request.resource.data.clockOutLocation == null && request.resource.data.createdAt == request.time && request.resource.data.clockInAt == request.time && request.resource.data.clockInLocation.latitude is number && request.resource.data.clockInLocation.longitude is number && request.resource.data.clockInLocation.accuracy is number) || (isManager() && request.resource.data.adminAdjusted == true && request.resource.data.uid is string && request.resource.data.date is string && request.resource.data.siteId == 'admin-adjustment' && request.resource.data.adjustmentRequestId is string && exists(/databases/$(database)/documents/attendance_adjustment_requests/$(request.resource.data.adjustmentRequestId)) && get(/databases/$(database)/documents/attendance_adjustment_requests/$(request.resource.data.adjustmentRequestId)).data.status == 'approved' && get(/databases/$(database)/documents/attendance_adjustment_requests/$(request.resource.data.adjustmentRequestId)).data.uid == request.resource.data.uid && get(/databases/$(database)/documents/attendance_adjustment_requests/$(request.resource.data.adjustmentRequestId)).data.date == request.resource.data.date);
       allow get, list: if activeUser() && (resource.data.uid == request.auth.uid || isManager());
-      allow update: if activeUser()
-        && resource.data.uid == request.auth.uid
-        && resource.data.clockOutAt == null
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.date == resource.data.date
-        && request.resource.data.clockInAt == resource.data.clockInAt
-        && request.resource.data.clockInLocation == resource.data.clockInLocation
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clockOutAt', 'clockOutLocation', 'clockOutSiteId', 'clockOutSiteName'])
-        && request.resource.data.clockOutSiteId is string
-        && request.resource.data.clockOutSiteName is string
-        && request.resource.data.clockOutAt == request.time
-        && request.resource.data.clockOutLocation.latitude is number
-        && request.resource.data.clockOutLocation.longitude is number
-        && request.resource.data.clockOutLocation.accuracy is number;
+      allow update: if (activeUser() && resource.data.uid == request.auth.uid && resource.data.clockOutAt == null && request.resource.data.uid == resource.data.uid && request.resource.data.date == resource.data.date && request.resource.data.clockInAt == resource.data.clockInAt && request.resource.data.clockInLocation == resource.data.clockInLocation && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clockOutAt', 'clockOutLocation', 'clockOutSiteId', 'clockOutSiteName']) && request.resource.data.clockOutSiteId is string && request.resource.data.clockOutSiteName is string && request.resource.data.clockOutAt == request.time && request.resource.data.clockOutLocation.latitude is number && request.resource.data.clockOutLocation.longitude is number && request.resource.data.clockOutLocation.accuracy is number) || (isManager() && request.resource.data.uid == resource.data.uid && request.resource.data.date == resource.data.date && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clockInAt', 'clockOutAt', 'adjustmentRequestId', 'adjustmentNote', 'adjustedBy', 'adjustedAt', 'originalClockInAt', 'originalClockOutAt']) && request.resource.data.adjustmentRequestId is string && exists(/databases/$(database)/documents/attendance_adjustment_requests/$(request.resource.data.adjustmentRequestId)) && get(/databases/$(database)/documents/attendance_adjustment_requests/$(request.resource.data.adjustmentRequestId)).data.status == 'approved' && get(/databases/$(database)/documents/attendance_adjustment_requests/$(request.resource.data.adjustmentRequestId)).data.uid == resource.data.uid && get(/databases/$(database)/documents/attendance_adjustment_requests/$(request.resource.data.adjustmentRequestId)).data.date == resource.data.date);
       allow delete: if isAdmin();
     }
     match /attendance_settings/{settingId} {
@@ -166,7 +140,7 @@ service cloud.firestore {
       allow read: if activeUser() && (resource.data.uid == request.auth.uid || isManager());
       allow update: if isManager()
         && resource.data.status == 'pending'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewNote'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewNote', 'appliedRecordId', 'appliedAt'])
         && request.resource.data.status in ['approved', 'rejected']
         && request.resource.data.reviewedAt == request.time
         && request.resource.data.reviewedBy == request.auth.uid
