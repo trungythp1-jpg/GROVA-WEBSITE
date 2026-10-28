@@ -713,7 +713,9 @@ $("task-form").addEventListener("submit", async (event) => {
     toast("Đã giao công việc.");
     loadTasks().catch(showError);
   } catch (error) {
-    $("task-feedback").textContent = error.message || "Không thể tạo công việc.";
+    const assignee = state.taskAssignees.find((item) => item.id === $("task-assignee").value);
+    const diagnostic = error?.code === "permission-denied" ? " | Người giao: " + (state.profile?.role || "không rõ") + "/" + (state.profile?.departmentId || "thiếu departmentId") + " | Người nhận: " + (assignee?.role || "không rõ") + "/" + (assignee?.departmentId || "thiếu departmentId") + " | Lỗi: " + (error.code || "không rõ") : "";
+    $("task-feedback").textContent = (error.message || "Không thể tạo công việc.") + diagnostic;
     $("task-feedback").className = "feedback error";
   } finally {
     button.disabled = false;
