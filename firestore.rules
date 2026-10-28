@@ -34,6 +34,20 @@ service cloud.firestore {
     function taskAssigneeProfile(uid) {
       return get(/databases/$(database)/documents/attendance_users/$(uid)).data;
     }
+    function validTaskDelegation(delegationId, sourceDepartmentId, targetDepartmentId) {
+      return delegationId is string
+        && exists(/databases/$(database)/documents/attendance_delegations/$(delegationId))
+        && get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.granteeUid == request.auth.uid
+        && get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.active == true
+        && get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.sourceDepartmentIds is list
+        && sourceDepartmentId in get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.sourceDepartmentIds
+        && get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.targetDepartmentIds is list
+        && targetDepartmentId in get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.targetDepartmentIds
+        && get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.permissions is list
+        && 'task_assign' in get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.permissions
+        && get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.validFrom <= request.time
+        && (get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.validUntil == null || get(/databases/$(database)/documents/attendance_delegations/$(delegationId)).data.validUntil > request.time);
+    }
     match /website_leads/{leadId} {
       allow create: if request.resource.data.keys().hasAll(['name', 'phone', 'email', 'need', 'consent', 'source', 'createdAt'])
         && request.resource.data.keys().hasOnly(['name', 'phone', 'email', 'need', 'consent', 'source', 'createdAt'])
@@ -117,10 +131,42 @@ service cloud.firestore {
         && request.resource.data.updatedBy == request.auth.uid;
       allow delete: if false;
     }
+    match /attendance_delegations/{delegationId} {
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['granteeUid', 'sourceDepartmentIds', 'targetDepartmentIds', 'permissions', 'grantedByUid', 'active', 'validFrom', 'validUntil', 'reason', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['granteeUid', 'sourceDepartmentIds', 'targetDepartmentIds', 'permissions', 'grantedByUid', 'active', 'validFrom', 'validUntil', 'reason', 'createdAt', 'updatedAt'])
+        && request.resource.data.granteeUid is string
+        && exists(/databases/$(database)/documents/attendance_users/$(request.resource.data.granteeUid))
+        && get(/databases/$(database)/documents/attendance_users/$(request.resource.data.granteeUid)).data.active == true
+        && get(/databases/$(database)/documents/attendance_users/$(request.resource.data.granteeUid)).data.role in ['team_lead', 'manager', 'department_head', 'executive_director']
+        && request.resource.data.sourceDepartmentIds is list
+        && request.resource.data.sourceDepartmentIds.size() == 1
+        && validDepartment(request.resource.data.sourceDepartmentIds[0])
+        && request.resource.data.targetDepartmentIds is list
+        && request.resource.data.targetDepartmentIds.size() == 1
+        && validDepartment(request.resource.data.targetDepartmentIds[0])
+        && request.resource.data.sourceDepartmentIds[0] != request.resource.data.targetDepartmentIds[0]
+        && request.resource.data.permissions == ['task_assign']
+        && request.resource.data.grantedByUid == request.auth.uid
+        && request.resource.data.active == true
+        && request.resource.data.validFrom == request.time
+        && (request.resource.data.validUntil == null || (request.resource.data.validUntil is timestamp && request.resource.data.validUntil > request.time))
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 5
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow get, list: if isAdmin() || (activeUser() && resource.data.granteeUid == request.auth.uid);
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'updatedAt'])
+        && request.resource.data.active == false
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
     match /workspace_tasks/{taskId} {
       allow create: if activeUser()
-        && request.resource.data.keys().hasAll(['title', 'description', 'assigneeUid', 'assigneeName', 'sourceDepartmentId', 'targetDepartmentId', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
-        && request.resource.data.keys().hasOnly(['title', 'description', 'assigneeUid', 'assigneeName', 'sourceDepartmentId', 'targetDepartmentId', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['title', 'description', 'assigneeUid', 'assigneeName', 'sourceDepartmentId', 'targetDepartmentId', 'delegationId', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['title', 'description', 'assigneeUid', 'assigneeName', 'sourceDepartmentId', 'targetDepartmentId', 'delegationId', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
         && request.resource.data.title is string
         && request.resource.data.title.size() >= 1
         && request.resource.data.title.size() <= 160
@@ -135,7 +181,7 @@ service cloud.firestore {
         && validDepartment(request.resource.data.targetDepartmentId)
         && (isAdmin() || request.resource.data.sourceDepartmentId == userProfile().departmentId)
         && request.resource.data.targetDepartmentId == taskAssigneeProfile(request.resource.data.assigneeUid).departmentId
-        && (isAdmin() || request.resource.data.sourceDepartmentId == request.resource.data.targetDepartmentId)
+        && (isAdmin() || (request.resource.data.sourceDepartmentId == request.resource.data.targetDepartmentId && request.resource.data.delegationId == null) || validTaskDelegation(request.resource.data.delegationId, request.resource.data.sourceDepartmentId, request.resource.data.targetDepartmentId))
         && roleLevel(userProfile().role) > taskAssigneeLevel(request.resource.data.assigneeUid)
         && request.resource.data.status == 'todo'
         && request.resource.data.priority in ['normal', 'high', 'urgent']
