@@ -28,6 +28,12 @@ service cloud.firestore {
     function taskAssigneeLevel(uid) {
       return roleLevel(get(/databases/$(database)/documents/attendance_users/$(uid)).data.role);
     }
+    function validDepartment(departmentId) {
+      return departmentId in ['marketing', 'sales', 'technical', 'finance_accounting', 'administration_hr', 'legal', 'procurement_supply'];
+    }
+    function taskAssigneeProfile(uid) {
+      return get(/databases/$(database)/documents/attendance_users/$(uid)).data;
+    }
     match /website_leads/{leadId} {
       allow create: if request.resource.data.keys().hasAll(['name', 'phone', 'email', 'need', 'consent', 'source', 'createdAt'])
         && request.resource.data.keys().hasOnly(['name', 'phone', 'email', 'need', 'consent', 'source', 'createdAt'])
@@ -59,8 +65,8 @@ service cloud.firestore {
       allow get: if signedIn() && (request.auth.uid == uid || isManager());
       allow list: if activeUser() && roleLevel(userProfile().role) >= 2;
       allow create: if isAdmin()
-        && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'role', 'active'])
-        && request.resource.data.keys().hasOnly(['displayName', 'email', 'department', 'role', 'active'])
+        && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'departmentId', 'role', 'active'])
+        && request.resource.data.keys().hasOnly(['displayName', 'email', 'department', 'departmentId', 'role', 'active'])
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() >= 1
         && request.resource.data.displayName.size() <= 120
@@ -68,11 +74,12 @@ service cloud.firestore {
         && request.resource.data.email.size() <= 254
         && request.resource.data.department is string
         && request.resource.data.department.size() <= 100
+        && validDepartment(request.resource.data.departmentId)
         && request.resource.data.role in ['employee', 'team_lead', 'manager', 'department_head', 'executive_director', 'admin']
         && request.resource.data.active is bool;
       allow update: if isAdmin()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'email', 'department', 'role', 'active'])
-        && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'role', 'active'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'email', 'department', 'departmentId', 'role', 'active'])
+        && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'departmentId', 'role', 'active'])
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() >= 1
         && request.resource.data.displayName.size() <= 120
@@ -80,6 +87,7 @@ service cloud.firestore {
         && request.resource.data.email.size() <= 254
         && request.resource.data.department is string
         && request.resource.data.department.size() <= 100
+        && validDepartment(request.resource.data.departmentId)
         && request.resource.data.role in ['employee', 'team_lead', 'manager', 'department_head', 'executive_director', 'admin']
         && request.resource.data.active is bool;
       allow delete: if false;
@@ -111,8 +119,8 @@ service cloud.firestore {
     }
     match /workspace_tasks/{taskId} {
       allow create: if activeUser()
-        && request.resource.data.keys().hasAll(['title', 'description', 'assigneeUid', 'assigneeName', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
-        && request.resource.data.keys().hasOnly(['title', 'description', 'assigneeUid', 'assigneeName', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['title', 'description', 'assigneeUid', 'assigneeName', 'sourceDepartmentId', 'targetDepartmentId', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['title', 'description', 'assigneeUid', 'assigneeName', 'sourceDepartmentId', 'targetDepartmentId', 'createdBy', 'createdByName', 'status', 'priority', 'dueDate', 'createdAt', 'updatedAt'])
         && request.resource.data.title is string
         && request.resource.data.title.size() >= 1
         && request.resource.data.title.size() <= 160
@@ -123,6 +131,11 @@ service cloud.firestore {
         && request.resource.data.assigneeName is string
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdByName is string
+        && validDepartment(request.resource.data.sourceDepartmentId)
+        && validDepartment(request.resource.data.targetDepartmentId)
+        && request.resource.data.sourceDepartmentId == userProfile().departmentId
+        && request.resource.data.targetDepartmentId == taskAssigneeProfile(request.resource.data.assigneeUid).departmentId
+        && (isAdmin() || request.resource.data.sourceDepartmentId == request.resource.data.targetDepartmentId)
         && roleLevel(userProfile().role) > taskAssigneeLevel(request.resource.data.assigneeUid)
         && request.resource.data.status == 'todo'
         && request.resource.data.priority in ['normal', 'high', 'urgent']
