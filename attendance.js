@@ -432,11 +432,15 @@ function resetEmployeeForm() {
 async function loadEmployees() {
   if (state.profile?.role !== "admin") {
     $("employee-form").style.display = "none";
+    const delegationPanel = $("view-employees").querySelector(".delegation-panel");
+    if (delegationPanel) delegationPanel.style.display = "none";
     return;
   }
   const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
   state.employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => String(a.displayName || "").localeCompare(String(b.displayName || ""), "vi"));
   renderEmployees();
+  const delegationPanel = $("view-employees").querySelector(".delegation-panel");
+  if (delegationPanel) delegationPanel.style.display = "";
   await loadDelegations();
 }
 async function loadDelegations() {
@@ -632,7 +636,7 @@ async function loadTaskAssignees() {
       if (employee.active !== true || taskRoleLevel(state.profile?.role) <= taskRoleLevel(employee.role) || employee.id === state.user?.uid || !employee.departmentId) return false;
       if (isAdmin) return true;
       if (!actorDepartmentId) return false;
-      if (employee.departmentId === actorDepartmentId) return true;
+      if (employee.departmentId === actorDepartmentId) return state.profile?.role === "manager";
       return state.taskDelegations.some((delegation) => delegationIsValid(delegation, actorDepartmentId, employee.departmentId));
     });
   state.taskAssignees = employees;
