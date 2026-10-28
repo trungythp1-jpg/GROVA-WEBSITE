@@ -554,12 +554,12 @@ async function reviewRequest(request, status) {
         const prior = existing.exists() ? existing.data() : null;
         const audit = { adjustmentRequestId: request.id, adjustmentNote: reviewNote.trim(), adjustedBy: state.user.uid, adjustedAt: serverTimestamp(), originalClockInAt: prior?.originalClockInAt || prior?.clockInAt || null, originalClockOutAt: prior?.originalClockOutAt || prior?.clockOutAt || null };
         if (prior) {
-          const changes = { ...audit };
+          const changes = { ...audit, adminAdjusted: state.profile?.role === "admin" };
           if (clockInAt) changes.clockInAt = clockInAt;
           if (clockOutAt) changes.clockOutAt = clockOutAt;
           transaction.update(recordRef, changes);
         } else {
-          transaction.set(recordRef, { uid: data.uid, date: data.date, siteId: "admin-adjustment", siteName: "Điều chỉnh bởi quản lý", clockInAt, clockOutAt, clockInLocation: null, clockOutLocation: null, createdAt: serverTimestamp(), adminAdjusted: true, ...audit });
+          transaction.set(recordRef, { uid: data.uid, date: data.date, siteId: "admin-adjustment", siteName: "Điều chỉnh bởi quản lý", clockInAt, clockOutAt, clockInLocation: null, clockOutLocation: null, createdAt: serverTimestamp(), adminAdjusted: state.profile?.role === "admin", ...audit });
         }
       }
       transaction.update(requestRef, { status, reviewedAt: serverTimestamp(), reviewedBy: state.user.uid, reviewNote: reviewNote.trim(), ...(status === "approved" ? { appliedRecordId: request.uid + "_" + request.date, appliedAt: serverTimestamp() } : {}) });
