@@ -957,40 +957,36 @@ $("load-system-attendance").addEventListener("click", () => loadSystemAttendance
 function printSystemAttendance() {
   if (state.profile?.role !== "admin") { toast("Chỉ Admin được in bảng chấm công toàn hệ thống."); return; }
   const report = state.systemAttendanceReport;
-  if (!report || $("print-system-attendance").disabled) { toast("Hãy tải bảng chấm công thành công trước khi in."); return; }
+  if (!report || $("print-system-attendance").disabled) { toast("Hãy lọc bảng chấm công trước khi in."); return; }
   const { users, records, from, to } = report;
-  const escapeHtml = value => String(value ?? "").replace(/[&<>"\']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"' : "&quot;", "\'": "&#39;" }[character]));
+  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
   const recordMap = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
   const dates = [];
   for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
   const fmtDate = key => key.slice(8,10) + "/" + key.slice(5,7) + "/" + key.slice(0,4);
-  const fmtDuration = (start, end) => {
-    if (!start || !end) return "—";
-    const minutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
-    return Math.floor(minutes / 60) + " giờ " + String(minutes % 60).padStart(2,"0") + " phút";
-  };
-  const rows = [];
-  users.forEach(user => {
-    dates.forEach(day => {
-      const record = recordMap.get(user.id + "_" + day);
+  const days = dates.map(day => ({ key: day, n: Number(day.slice(8,10)), sunday: isSundayKey(day) }));
+  const rows = users.map(user => {
+    let worked = 0;
+    const cells = days.map(day => {
+      const record = recordMap.get(user.id + "_" + day.key);
       const start = asDate(record?.clockInAt);
       const end = asDate(record?.clockOutAt);
-      const sunday = isSundayKey(day);
-      const status = sunday ? "Nghỉ Chủ nhật" : start && end ? "Đã chấm công đủ" : start ? "Chưa tan ca" : "Chưa chấm công";
-      rows.push("<tr><td>" + escapeHtml(user.displayName || user.email || user.id) + "</td><td>" + escapeHtml(user.department || "Chưa phân bộ phận") + "</td><td>" + fmtDate(day) + "</td><td>" + ["Chủ nhật","Thứ Hai","Thứ Ba","Thứ Tư","Thứ Năm","Thứ Sáu","Thứ Bảy"][new Date(day + "T12:00:00+07:00").getDay()] + "</td><td>" + (start ? fmtTime(start) : "—") + "</td><td>" + (end ? fmtTime(end) : "—") + "</td><td>" + fmtDuration(start,end) + "</td><td class='" + (sunday ? "off" : start && end ? "done" : start ? "open" : "missing") + "'>" + status + "</td></tr>");
-    });
-  });
+      if (start && end) worked++;
+      if (day.sunday) return '<td class="sunday">N</td>';
+      if (start && end) return '<td class="done">' + fmtTime(start) + '<br><span>' + fmtTime(end) + '</span></td>';
+      if (start) return '<td class="open">' + fmtTime(start) + '<br><span>…</span></td>';
+      return '<td class="empty">—</td>';
+    }).join("");
+    return '<tr><td class="employee">' + escapeHtml(user.displayName || user.email || user.id) + '<small>' + escapeHtml(user.email || "") + '</small></td><td class="department">' + escapeHtml(user.department || "Chưa phân bộ phận") + '</td>' + cells + '<td class="total">' + worked + '</td></tr>';
+  }).join("");
   const printWindow = window.open("", "_blank");
   if (!printWindow) { toast("Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại."); return; }
   const logo = new URL("assets/grova_logo.png", document.baseURI).href;
   const companyUrl = "https://trungythp1-jpg.github.io/GROVA-WEBSITE/";
   printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bảng chấm công toàn hệ thống — GROVA HOLDINGS</title><style>
-@page{size:A4 landscape;margin:12mm 10mm}
-*{box-sizing:border-box}html,body{margin:0;padding:0;color:#172c3a;font-family:"Be Vietnam Pro",Arial,sans-serif;font-size:10px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{position:relative;background:#fff}.watermark{position:fixed;z-index:0;left:50%;top:48%;transform:translate(-50%,-50%);width:310px;height:auto;opacity:.055;pointer-events:none}.page{position:relative;z-index:1}
-.header{display:flex;align-items:center;gap:18px;padding:0 0 12px;border-bottom:2px solid #07518b}.logo{width:105px;height:auto;object-fit:contain}.company{flex:1}.company h1{margin:0;color:#07518b;font-size:19px;letter-spacing:1px;font-weight:800}.company p{margin:3px 0;color:#4c6659;font-size:9px}.doc-title{text-align:center;margin:16px 0 12px}.doc-title h2{font-size:16px;letter-spacing:.3px;margin:0 0 5px;color:#172c3a}.doc-title p{margin:3px 0;color:#4b5d53;font-size:10px}.meta{display:flex;justify-content:space-between;gap:15px;border-top:1px solid #dce5dd;border-bottom:1px solid #dce5dd;padding:7px 0;margin-bottom:10px;font-size:9px}.table-wrap{width:100%}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8px}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}th{background:#07518b;color:#fff;font-weight:700}th,td{border:1px solid #cbd8ce;padding:5px 4px;text-align:center;vertical-align:middle;overflow-wrap:anywhere}th:nth-child(1),td:nth-child(1){width:17%;text-align:left}th:nth-child(2),td:nth-child(2){width:13%;text-align:left}th:nth-child(3),td:nth-child(3){width:10%}th:nth-child(4),td:nth-child(4){width:10%}th:nth-child(5),td:nth-child(5){width:8%}th:nth-child(6),td:nth-child(6){width:8%}th:nth-child(7),td:nth-child(7){width:14%}th:nth-child(8),td:nth-child(8){width:20%}tbody tr:nth-child(even){background:#f5f9fb}.off{color:#07518b;font-weight:700}.done{color:#176a45;font-weight:700}.open{color:#996b16;font-weight:700}.missing{color:#68776d}.footer{margin-top:12px;padding-top:7px;border-top:1px solid #dce5dd;display:flex;justify-content:space-between;gap:12px;color:#52685a;font-size:8px}.footer strong{color:#07518b}.signatures{display:flex;justify-content:space-between;gap:35px;margin-top:22px;text-align:center;break-inside:avoid}.signatures div{width:33%;font-size:9px}.signatures b{display:block;margin-bottom:42px;font-size:9px}
-</style></head><body><img class="watermark" src="${logo}" alt=""><div class="page"><header class="header"><img class="logo" src="${logo}" alt="Logo GROVA HOLDINGS"><div class="company"><h1>GROVA HOLDINGS</h1><p>HỆ SINH THÁI DOANH NGHIỆP GROVA</p><p>GROVA ELEVATOR · GROVA ELEVATOR INTERIORS</p><p>GROVA LAW · GROVA EDUCATION</p><p>Website: ${companyUrl}</p></div></header><section class="doc-title"><h2>BẢNG CHẤM CÔNG TOÀN HỆ THỐNG</h2><p>Thời gian: ${fmtDate(from)} – ${fmtDate(to)}</p><p>Quy định ngày nghỉ hàng tuần: Chủ nhật</p></section><div class="meta"><span><b>Tổng nhân sự:</b> ${users.length}</span><span><b>Tổng ngày trong kỳ:</b> ${dates.length}</span><span><b>Ngày lập báo cáo:</b> ${fmtDate(todayKey())}</span></div><div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Bộ phận</th><th>Ngày</th><th>Thứ</th><th>Giờ vào</th><th>Giờ ra</th><th>Tổng thời gian</th><th>Trạng thái</th></tr></thead><tbody>${rows.join("")}</tbody></table></div><footer class="footer"><span><strong>GROVA HOLDINGS</strong> · Bảng chấm công nội bộ</span><span>${companyUrl}</span><span>Trang in tự động</span></footer><div class="signatures"><div><b>NGƯỜI LẬP BẢNG</b>(Ký, ghi rõ họ tên)</div><div><b>QUẢN LÝ NHÂN SỰ</b>(Ký, ghi rõ họ tên)</div><div><b>ĐẠI DIỆN CÔNG TY</b>(Ký, ghi rõ họ tên)</div></div></div></body></html>`;
+@page{size:A3 landscape;margin:9mm}*{box-sizing:border-box}html,body{margin:0;padding:0;color:#172c3a;font-family:"Be Vietnam Pro",Arial,sans-serif;font-size:9px;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{position:relative;background:#fff}.watermark{position:fixed;z-index:0;left:50%;top:50%;transform:translate(-50%,-50%);width:270px;height:auto;opacity:.055;pointer-events:none}.page{position:relative;z-index:1}.header{display:flex;align-items:center;gap:14px;padding:0 0 8px;border-bottom:2px solid #07518b}.logo{width:82px;height:auto;object-fit:contain}.company{flex:1}.company h1{margin:0;color:#07518b;font-size:16px;letter-spacing:.8px;font-weight:800}.company p{margin:2px 0;color:#4c6659;font-size:8px}.title{text-align:center;margin:9px 0}.title h2{margin:0 0 4px;font-size:14px;color:#172c3a}.title p{margin:2px 0;color:#4b5d53}.meta{display:flex;justify-content:space-between;border-top:1px solid #dce5dd;border-bottom:1px solid #dce5dd;padding:5px 0;margin-bottom:7px;font-size:8px}.table-wrap{width:100%}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7px}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{border:1px solid #cbd8ce;padding:3px 1px;text-align:center;vertical-align:middle;overflow-wrap:anywhere}th{background:#07518b;color:#fff;font-weight:700}th.employee,td.employee{width:145px;text-align:left}td.employee{font-weight:700}td.employee small{display:block;font-size:6px;font-weight:400;color:#607367}th.department,td.department{width:76px;text-align:left}th.day{width:24px}th.total,td.total{width:36px;font-weight:700}.sunday{background:#eaf1f7;color:#07518b;font-weight:700}.done{color:#176a45;font-weight:700}.done span,.open span{color:#52685a;font-weight:400}.open{color:#996b16;font-weight:700}.empty{color:#9aa69f}.footer{margin-top:8px;padding-top:5px;border-top:1px solid #dce5dd;display:flex;justify-content:space-between;color:#52685a;font-size:7px}.footer strong{color:#07518b}.legend{margin-top:6px;font-size:7px;color:#52685a}.signatures{display:flex;justify-content:space-around;gap:20px;margin-top:14px;text-align:center;break-inside:avoid}.signatures div{width:30%;font-size:8px}.signatures b{display:block;margin-bottom:30px}
+</style></head><body><img class="watermark" src="${logo}" alt=""><div class="page"><header class="header"><img class="logo" src="${logo}" alt="Logo GROVA HOLDINGS"><div class="company"><h1>GROVA HOLDINGS</h1><p>HỆ SINH THÁI DOANH NGHIỆP GROVA</p><p>GROVA ELEVATOR · GROVA ELEVATOR INTERIORS · GROVA LAW · GROVA EDUCATION</p><p>Website: ${companyUrl}</p></div></header><section class="title"><h2>BẢNG CHẤM CÔNG TOÀN HỆ THỐNG</h2><p>Kỳ chấm công: ${fmtDate(from)} – ${fmtDate(to)} · Chủ nhật nghỉ hàng tuần</p></section><div class="meta"><span><b>Tổng nhân sự:</b> ${users.length}</span><span><b>Tổng ngày trong kỳ:</b> ${days.length}</span><span><b>Ngày lập:</b> ${fmtDate(todayKey())}</span></div><div class="table-wrap"><table><thead><tr><th class="employee">HỌ VÀ TÊN</th><th class="department">BỘ PHẬN</th>${days.map(day => '<th class="day">' + day.n + (day.sunday ? '<br>N' : '') + '</th>').join("")}<th class="total">TỔNG NGÀY CÔNG</th></tr></thead><tbody>${rows}</tbody></table></div><div class="legend"><b>Ký hiệu:</b> N = nghỉ Chủ nhật · Mỗi ô ngày hiển thị giờ vào và giờ ra · — = chưa có dữ liệu chấm công</div><footer class="footer"><span><strong>GROVA HOLDINGS</strong> · Bảng chấm công nội bộ</span><span>${companyUrl}</span><span>Ngày lập: ${fmtDate(todayKey())}</span></footer><div class="signatures"><div><b>NGƯỜI LẬP BẢNG</b>(Ký, ghi rõ họ tên)</div><div><b>QUẢN LÝ NHÂN SỰ</b>(Ký, ghi rõ họ tên)</div><div><b>ĐẠI DIỆN CÔNG TY</b>(Ký, ghi rõ họ tên)</div></div></div></body></html>`;
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
