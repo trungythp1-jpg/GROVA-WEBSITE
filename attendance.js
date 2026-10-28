@@ -642,7 +642,7 @@ function taskStatusLabel(status) {
 function renderTasks() {
   const list = $("task-list");
   list.replaceChildren();
-  const filter = $("task-status-filter").value;
+  const filter = $("task-status-filter").value || "all";
   const term = $("task-search").value.trim().toLocaleLowerCase("vi");
   const filtered = state.tasks.filter(task => {
     const status = task.status || "todo";
@@ -652,7 +652,9 @@ function renderTasks() {
   });
   $("task-total").textContent = String(state.tasks.length);
   $("task-active").textContent = String(state.tasks.filter(task => task.status === "in_progress").length);
-  $("task-pending").textContent = String(state.tasks.filter(task => task.status !== "done").length);
+  $("task-pending").textContent = String(state.tasks.filter(task => (task.status || "todo") !== "done").length);
+  const filterSelect = $("task-status-filter");
+  if (filterSelect && !filterSelect.value) filterSelect.value = "all";
   const pageCount = Math.max(1, Math.ceil(filtered.length / state.taskPageSize));
   state.taskPage = Math.min(Math.max(1, state.taskPage), pageCount);
   const start = (state.taskPage - 1) * state.taskPageSize;
@@ -665,7 +667,23 @@ function renderTasks() {
   if (!filtered.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = state.tasks.length ? "Không có công việc phù hợp bộ lọc." : "Chưa có công việc. Khi được giao nhiệm vụ, công việc sẽ hiển thị tại đây.";
+    empty.className = "empty-state task-empty-state";
+    const title = document.createElement("strong");
+    const detail = document.createElement("span");
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "outline-button";
+    if (state.tasks.length) {
+      title.textContent = "Không tìm thấy công việc phù hợp";
+      detail.textContent = "Hãy đổi trạng thái lọc hoặc xóa từ khóa tìm kiếm.";
+      reset.textContent = "Xóa bộ lọc";
+      reset.addEventListener("click", () => { $("task-search").value = ""; $("task-status-filter").value = "all"; state.taskPage = 1; renderTasks(); });
+      empty.append(title, detail, reset);
+    } else {
+      title.textContent = "Chưa có công việc";
+      detail.textContent = "Khi có công việc được giao hoặc do bạn tạo, danh sách sẽ hiển thị tại đây.";
+      empty.append(title, detail);
+    }
     list.append(empty);
     return;
   }
