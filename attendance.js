@@ -7,7 +7,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
-const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null, taskAssignees: [] };
+const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null, taskAssignees: [], taskDelegations: [] };
+const DEPARTMENTS = [{ id: "marketing", name: "Marketing" }, { id: "sales", name: "Kinh doanh" }, { id: "technical", name: "Kỹ thuật" }, { id: "finance_accounting", name: "Tài chính – Kế toán" }, { id: "administration_hr", name: "Hành chính – Nhân sự" }, { id: "legal", name: "Pháp chế" }, { id: "procurement_supply", name: "Mua hàng – Cung ứng" }];
+const departmentName = (id) => DEPARTMENTS.find((item) => item.id === id)?.name || "";
 const fmtTime = (date) => date ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date) : "--:--";
 const fmtDate = (date) => new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Ho_Chi_Minh" }).format(date);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
@@ -430,11 +432,68 @@ function resetEmployeeForm() {
 async function loadEmployees() {
   if (state.profile?.role !== "admin") {
     $("employee-form").style.display = "none";
+    const delegationPanel = $("view-employees").querySelector(".delegation-panel");
+    if (delegationPanel) delegationPanel.style.display = "none";
     return;
   }
   const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
   state.employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => String(a.displayName || "").localeCompare(String(b.displayName || ""), "vi"));
   renderEmployees();
+  const delegationPanel = $("view-employees").querySelector(".delegation-panel");
+  if (delegationPanel) delegationPanel.style.display = "";
+  await loadDelegations();
+}
+async function loadDelegations() {
+  if (state.profile?.role !== "admin") return;
+  const grantee = $("delegation-grantee");
+  const previous = grantee.value;
+  grantee.replaceChildren(new Option("Chọn quản lý", ""));
+  state.employees.filter((employee) => employee.active === true && taskRoleLevel(employee.role) >= 2 && employee.role !== "admin").forEach((employee) => {
+    grantee.add(new Option([employee.displayName || employee.email || employee.id, departmentName(employee.departmentId) || employee.department].filter(Boolean).join(" · "), employee.id));
+  });
+  if (state.employees.some((employee) => employee.id === previous && employee.active === true)) grantee.value = previous;
+  const snapshot = await getDocs(query(collection(db, "attendance_delegations"), limit(500)));
+  const list = $("delegation-list");
+  list.replaceChildren();
+  const delegations = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => String(b.updatedAt?.toDate?.() || "").localeCompare(String(a.updatedAt?.toDate?.() || "")));
+  if (!delegations.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Chưa có quyền ủy quyền liên phòng ban.";
+    list.append(empty);
+    return;
+  }
+  delegations.forEach((delegation) => {
+    const item = document.createElement("div");
+    item.className = "request-item";
+    const title = document.createElement("strong");
+    const granteeProfile = state.employees.find((employee) => employee.id === delegation.granteeUid);
+    title.textContent = (granteeProfile?.displayName || delegation.granteeUid) + " · " + (delegation.active === true ? "Đang hoạt động" : "Đã thu hồi");
+    const detail = document.createElement("p");
+    detail.className = "muted small";
+    detail.textContent = (delegation.sourceDepartmentIds || []).map(departmentName).join(", ") + " → " + (delegation.targetDepartmentIds || []).map(departmentName).join(", ") + " · " + (delegation.reason || "Không có lý do");
+    item.append(title, detail);
+    if (delegation.active === true) {
+      const revoke = document.createElement("button");
+      revoke.type = "button";
+      revoke.className = "outline-button";
+      revoke.textContent = "Thu hồi quyền";
+      revoke.addEventListener("click", async () => {
+        if (state.profile?.role !== "admin") return;
+        revoke.disabled = true;
+        try {
+          await updateDoc(doc(db, "attendance_delegations", delegation.id), { active: false, updatedAt: serverTimestamp() });
+          await loadDelegations();
+          toast("Đã thu hồi quyền ủy quyền.");
+        } catch (error) {
+          revoke.disabled = false;
+          showError(error);
+        }
+      });
+      item.append(revoke);
+    }
+    list.append(item);
+  });
 }
 function renderEmployees() {
   const rows = $("employee-admin-rows");
@@ -450,7 +509,7 @@ function renderEmployees() {
   }
   state.employees.forEach((employee) => {
     const row = document.createElement("tr");
-    const values = [employee.displayName || employee.email || employee.id, employee.department || "Chưa phân bộ phận", employee.role || "employee", employee.active === true ? "Đang hoạt động" : "Đã khóa"];
+    const values = [employee.displayName || employee.email || employee.id, departmentName(employee.departmentId) || employee.department || "Chưa phân bộ phận", employee.role || "employee", employee.active === true ? "Đang hoạt động" : "Đã khóa"];
     values.forEach((value, index) => {
       const cell = document.createElement("td");
       if (index === 3) {
@@ -472,7 +531,7 @@ function renderEmployees() {
       $("employee-uid").disabled = true;
       $("employee-name").value = employee.displayName || "";
       $("employee-email").value = employee.email || "";
-      $("employee-department").value = employee.department || "";
+      $("employee-department").value = employee.departmentId || "";
       $("employee-role").value = ["employee", "team_lead", "manager", "department_head", "executive_director", "admin"].includes(employee.role) ? employee.role : "employee";
       $("employee-active").checked = employee.active === true;
       $("employee-form-title").textContent = "Sửa hồ sơ nhân viên";
@@ -487,6 +546,12 @@ function renderEmployees() {
   $("employee-admin-search").dispatchEvent(new Event("input"));
 }
 function taskRoleLevel(role) { return ({ employee: 1, team_lead: 2, manager: 3, department_head: 4, executive_director: 5, admin: 6 })[role] || 0; }
+function delegationIsValid(delegation, sourceDepartmentId, targetDepartmentId) {
+  const now = Date.now();
+  const validFrom = delegation.validFrom?.toDate ? delegation.validFrom.toDate().getTime() : new Date(delegation.validFrom || 0).getTime();
+  const validUntil = delegation.validUntil?.toDate ? delegation.validUntil.toDate().getTime() : (delegation.validUntil ? new Date(delegation.validUntil).getTime() : null);
+  return delegation.active === true && validFrom <= now && (validUntil === null || validUntil > now) && Array.isArray(delegation.sourceDepartmentIds) && delegation.sourceDepartmentIds.includes(sourceDepartmentId) && Array.isArray(delegation.targetDepartmentIds) && delegation.targetDepartmentIds.includes(targetDepartmentId) && Array.isArray(delegation.permissions) && delegation.permissions.includes("task_assign");
+}
 function taskStatusLabel(status) {
   return ({ todo: "Mới giao", in_progress: "Đang thực hiện", done: "Hoàn thành" })[status] || "Mới giao";
 }
@@ -562,17 +627,27 @@ async function loadTaskAssignees() {
   if (taskRoleLevel(state.profile?.role) < 2) return;
   const select = $("task-assignee");
   const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
+  const isAdmin = state.profile?.role === "admin";
+  const actorDepartmentId = state.profile?.departmentId || "";
+  const delegationSnapshot = isAdmin ? null : await getDocs(query(collection(db, "attendance_delegations"), where("granteeUid", "==", state.user.uid), limit(200)));
+  state.taskDelegations = delegationSnapshot ? delegationSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })) : [];
   const employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
-    .filter((employee) => employee.active === true && taskRoleLevel(state.profile?.role) > taskRoleLevel(employee.role) && employee.id !== state.user?.uid);
+    .filter((employee) => {
+      if (employee.active !== true || taskRoleLevel(state.profile?.role) <= taskRoleLevel(employee.role) || employee.id === state.user?.uid || !employee.departmentId) return false;
+      if (isAdmin) return true;
+      if (!actorDepartmentId) return false;
+      if (employee.departmentId === actorDepartmentId) return state.profile?.role === "manager";
+      return state.taskDelegations.some((delegation) => delegationIsValid(delegation, actorDepartmentId, employee.departmentId));
+    });
   state.taskAssignees = employees;
   employees.sort((a, b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
   select.replaceChildren();
   select.append(new Option(employees.length ? "Chọn nhân sự nhận việc" : "Chưa có nhân sự đang hoạt động", ""));
   employees.forEach((employee) => {
-    const option = new Option([employee.displayName || employee.email || employee.id, employee.department].filter(Boolean).join(" · "), employee.id);
+    const option = new Option([employee.displayName || employee.email || employee.id, departmentName(employee.departmentId) || employee.department].filter(Boolean).join(" · "), employee.id);
     select.append(option);
   });
-  $("task-assignee-meta").textContent = employees.length + " nhân sự đang hoạt động · Người nhận thấy nhiệm vụ trong mục Công việc của tôi.";
+  $("task-assignee-meta").textContent = isAdmin ? employees.length + " nhân sự đang hoạt động · Admin có thể giao việc toàn công ty." : employees.length + " nhân sự trong phạm vi phòng ban và ủy quyền đang hoạt động.";
 }
 async function loadTasks() {
   const manager = taskRoleLevel(state.profile?.role) >= 2;
@@ -606,11 +681,23 @@ $("task-form").addEventListener("submit", async (event) => {
     if (!assigneeSnapshot.exists() || assigneeSnapshot.data().active !== true) throw new Error("Không tìm thấy hồ sơ nhân viên đang hoạt động với UID này.");
     const profile = assigneeSnapshot.data();
     if (taskRoleLevel(state.profile?.role) <= taskRoleLevel(profile.role)) throw new Error("Chỉ được giao việc cho nhân sự có cấp bậc thấp hơn.");
+    const targetDepartmentId = profile.departmentId || "";
+    const sourceDepartmentId = state.profile?.departmentId || (state.profile?.role === "admin" ? targetDepartmentId : "");
+    if (!sourceDepartmentId || !targetDepartmentId) throw new Error("Hồ sơ người giao và người nhận phải được Admin phân phòng ban trước khi giao việc.");
+    let delegationId = null;
+    if (state.profile?.role !== "admin" && sourceDepartmentId !== targetDepartmentId) {
+      const delegation = state.taskDelegations.find((item) => delegationIsValid(item, sourceDepartmentId, targetDepartmentId));
+      if (!delegation) throw new Error("Bạn chưa được Admin ủy quyền giao việc tới phòng ban này.");
+      delegationId = delegation.id;
+    }
     await addDoc(collection(db, "workspace_tasks"), {
       title: $("task-title").value.trim(),
       description: $("task-description").value.trim(),
       assigneeUid,
       assigneeName: profile.displayName || profile.email || assigneeUid,
+      sourceDepartmentId,
+      targetDepartmentId,
+      delegationId,
       createdBy: state.user.uid,
       createdByName: state.profile.displayName || state.user.email || "",
       status: "todo",
@@ -864,11 +951,12 @@ $("employee-form").addEventListener("submit", async (event) => {
   const uid = $("employee-uid").value.trim();
   const displayName = $("employee-name").value.trim();
   const email = $("employee-email").value.trim();
-  const department = $("employee-department").value.trim();
+  const departmentId = $("employee-department").value;
+  const department = departmentName(departmentId);
   const role = $("employee-role").value;
   const active = $("employee-active").checked;
-  if (uid.length < 10 || !displayName || !["employee", "team_lead", "manager", "department_head", "executive_director", "admin"].includes(role)) {
-    $("employee-feedback").textContent = "Kiểm tra UID, họ tên và vai trò.";
+  if (uid.length < 10 || !displayName || !departmentId || !DEPARTMENTS.some((item) => item.id === departmentId) || !["employee", "team_lead", "manager", "department_head", "executive_director", "admin"].includes(role)) {
+    $("employee-feedback").textContent = "Kiểm tra UID, họ tên, phòng ban và vai trò.";
     $("employee-feedback").classList.add("error");
     return;
   }
@@ -876,7 +964,7 @@ $("employee-form").addEventListener("submit", async (event) => {
     const ref = doc(db, "attendance_users", uid);
     const existing = await getDoc(ref);
     if (!existing.exists() && state.editingEmployeeId) throw new Error("Không tìm thấy hồ sơ cần cập nhật.");
-    await setDoc(ref, { displayName, email, department, role, active }, { merge: true });
+    await setDoc(ref, { displayName, email, department, departmentId, role, active }, { merge: true });
     $("employee-feedback").classList.remove("error");
     $("employee-feedback").textContent = "Đã lưu hồ sơ nhân viên.";
     await loadEmployees();
@@ -890,6 +978,45 @@ $("employee-form").addEventListener("submit", async (event) => {
   }
 });
 $("employee-cancel").addEventListener("click", resetEmployeeForm);
+$("delegation-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (state.profile?.role !== "admin") return;
+  const granteeUid = $("delegation-grantee").value;
+  const sourceDepartmentId = $("delegation-source").value;
+  const targetDepartmentId = $("delegation-target").value;
+  const reason = $("delegation-reason").value.trim();
+  const validUntilValue = $("delegation-until").value;
+  const grantee = state.employees.find((employee) => employee.id === granteeUid);
+  const feedbackNode = $("delegation-feedback");
+  try {
+    if (!grantee || grantee.active !== true || taskRoleLevel(grantee.role) < 2 || grantee.role === "admin") throw new Error("Chọn một quản lý đang hoạt động.");
+    if (!sourceDepartmentId || !targetDepartmentId || sourceDepartmentId === targetDepartmentId) throw new Error("Phòng ban nguồn và đích phải khác nhau.");
+    if (reason.length < 5) throw new Error("Lý do ủy quyền cần ít nhất 5 ký tự.");
+    const validUntil = validUntilValue ? Timestamp.fromDate(new Date(validUntilValue + "T23:59:59")) : null;
+    if (validUntil && validUntil.toDate().getTime() <= Date.now()) throw new Error("Ngày hết hạn phải ở tương lai.");
+    await addDoc(collection(db, "attendance_delegations"), {
+      granteeUid,
+      sourceDepartmentIds: [sourceDepartmentId],
+      targetDepartmentIds: [targetDepartmentId],
+      permissions: ["task_assign"],
+      grantedByUid: state.user.uid,
+      active: true,
+      validFrom: serverTimestamp(),
+      validUntil,
+      reason,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    $("delegation-form").reset();
+    feedbackNode.className = "feedback";
+    feedbackNode.textContent = "Đã cấp quyền ủy quyền giao việc.";
+    await loadDelegations();
+    toast("Đã cấp quyền ủy quyền.");
+  } catch (error) {
+    feedbackNode.className = "feedback error";
+    feedbackNode.textContent = error.message || "Không thể cấp quyền ủy quyền.";
+  }
+});
 $("employee-admin-search").addEventListener("input", (event) => {
   const term = event.target.value.trim().toLocaleLowerCase("vi");
   document.querySelectorAll("#employee-admin-rows tr").forEach((row) => { row.hidden = !row.textContent.toLocaleLowerCase("vi").includes(term); });
