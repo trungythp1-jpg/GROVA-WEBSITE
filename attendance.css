@@ -201,3 +201,18 @@
 .task-pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px}
 .task-pagination span{font-size:12px;color:#617267;white-space:nowrap}
 @media(max-width:760px){.task-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%}.task-filters input[type="search"]{grid-column:1/-1;width:100%;min-width:0;max-width:none;box-sizing:border-box}.task-filters select{width:100%;min-width:0}.task-filters button{width:100%;white-space:nowrap}.panel-heading:has(.task-filters){align-items:flex-start;flex-direction:column}.task-list-summary{font-size:11px}}
+
+@media print{
+ html,body{height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}
+ body *{visibility:hidden!important}
+ #view-overview,#view-overview.active,main,.app-shell,#system-attendance-panel,#system-attendance-print-area{display:block!important;visibility:visible!important;position:static!important;overflow:visible!important;max-width:none!important;width:100%!important;height:auto!important;min-height:0!important;transform:none!important;box-shadow:none!important;background:#fff!important}
+ #system-attendance-panel{padding:0!important;border:0!important;margin:0!important}
+ #system-attendance-print-area,#system-attendance-print-area *{visibility:visible!important}
+ #system-attendance-print-area{position:static!important;left:auto!important;top:auto!important}
+ #system-attendance-empty{display:none!important}
+ .system-attendance-table-wrap{display:block!important;visibility:visible!important;overflow:visible!important;border:0!important}
+ .system-attendance-table{width:100%!important;min-width:0!important;font-size:7px!important}
+ .system-attendance-table th,.system-attendance-table td{padding:3px 2px!important;font-size:7px!important;color:#111!important;background:#fff!important;white-space:normal!important;overflow-wrap:anywhere!important}
+ .system-attendance-table th:first-child,.system-attendance-table td:first-child{min-width:90px!important}
+ .system-attendance-table th:nth-child(2),.system-attendance-table td:nth-child(2){min-width:65px!important}
+}
