@@ -1076,24 +1076,40 @@ function printSystemAttendance() {
   if (!report || $("print-system-attendance").disabled) { toast("Hãy lọc bảng chấm công trước khi in."); return; }
   const { users, records, from, to } = report;
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
-  const recordMap = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
+  const recordMap = new Map();
+  records.forEach(record => {
+    const key = String(record.uid) + "_" + String(record.date);
+    const prior = recordMap.get(key);
+    if (!prior || (asDate(record.clockOutAt)?.getTime() || 0) > (asDate(prior.clockOutAt)?.getTime() || 0)) recordMap.set(key, record);
+  });
+  const userById = new Map(users.map(user => [user.id, user]));
   const dates = [];
   for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
-  const fmtDate = key => key.slice(8,10) + "/" + key.slice(5,7) + "/" + key.slice(0,4);
-  const days = dates.map(day => ({ key: day, n: Number(day.slice(8,10)), sunday: isSundayKey(day) }));
+  const days = dates.map(day => ({ key: day, sunday: isSundayKey(day) }));
   const rows = users.map(user => {
     let worked = 0;
     const cells = days.map(day => {
       const record = recordMap.get(user.id + "_" + day.key);
       const start = asDate(record?.clockInAt);
       const end = asDate(record?.clockOutAt);
-      if (start && end) worked++;
-      if (day.sunday) return '<td class="sunday">N</td>';
-      if (start && end) return '<td class="done">' + fmtTime(start) + '<br><span>' + fmtTime(end) + '</span></td>';
-      if (start) return '<td class="open">' + fmtTime(start) + '<br><span>…</span></td>';
-      return '<td class="empty">—</td>';
+      const complete = Boolean(start && end);
+      const sundayApproved = Boolean(day.sunday && record?.adminAdjusted && record?.adjustedBy && userById.get(record.adjustedBy)?.role === "admin" && complete);
+      if (day.sunday) {
+        if (sundayApproved) {
+          worked++;
+          return '<td class="done">' + fmtTime(start) + '<br><span>' + fmtTime(end) + '</span></td>';
+        }
+        if (start || end) return '<td class="open">Chờ Admin</td>';
+        return '<td class="sunday">N</td>';
+      }
+      if (complete) {
+        worked++;
+        return '<td class="done">' + fmtTime(start) + '<br><span>' + fmtTime(end) + '</span></td>';
+      }
+      if (start || end) return '<td class="open">' + (start ? fmtTime(start) : "—") + '<br><span>' + (end ? fmtTime(end) : "…") + '</span></td>';
+      return '<td class="empty">Chờ xác nhận</td>';
     }).join("");
-    return '<tr><td class="employee">' + escapeHtml(user.displayName || user.email || user.id) + '<small>' + escapeHtml(user.email || "") + '</small></td><td class="department">' + escapeHtml(user.department || "Chưa phân bộ phận") + '</td>' + cells + '<td class="total">' + worked + '</td></tr>';
+    return '<tr><td class="employee">' + escapeHtml(user.displayName || user.email || user.id) + '<small>' + escapeHtml(user.email || "") + '</small></td><td class="department">' + escapeHtml(user.department || departmentName(user.departmentId) || "Chưa phân bộ phận") + '</td>' + cells + '<td class="total">' + worked + '</td></tr>';
   }).join("");
   const printWindow = window.open("", "_blank");
   if (!printWindow) { toast("Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại."); return; }
