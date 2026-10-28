@@ -1,0 +1,73 @@
+:root{
+  --ui-ink:#172b25;
+  --ui-muted:#718078;
+  --ui-border:#e3e9e4;
+  --ui-surface:#ffffff;
+  --ui-canvas:#f5f7f5;
+  --ui-accent:#176b45;
+  --ui-accent-soft:#eaf5ee;
+  --ui-radius:14px;
+}
+body{background:var(--ui-canvas);color:var(--ui-ink);-webkit-font-smoothing:antialiased}
+.main{padding-bottom:34px}
+.topbar{position:sticky;top:0;z-index:4;background:rgba(245,247,245,.92);backdrop-filter:blur(14px);border-bottom-color:#e4e9e4}
+.notice{border:1px solid #dce9df;border-radius:10px;background:#f0f7f1;color:#365744}
+.notice-icon{border-radius:50%;background:#dceee1;color:#176b45}
+.page-intro{gap:20px}
+.page-intro h1{letter-spacing:-.8px}
+.eyebrow{font-weight:750}
+.muted{color:var(--ui-muted)}
+.summary-card,.panel{border:1px solid var(--ui-border);border-radius:var(--ui-radius);box-shadow:0 2px 5px rgba(20,40,28,.025),0 8px 24px rgba(20,40,28,.025);transition:border-color .18s ease,box-shadow .18s ease}
+.summary-card{background:var(--ui-surface)}
+.panel{background:var(--ui-surface)}
+.summary-card:hover,.panel:hover{border-color:#d3dfd6;box-shadow:0 3px 8px rgba(20,40,28,.035),0 12px 28px rgba(20,40,28,.035)}
+.card-label{letter-spacing:.9px}
+.metric{font-variant-numeric:tabular-nums;letter-spacing:-.8px}
+.panel-heading{gap:16px}
+.panel-heading h2{letter-spacing:-.35px}
+.icon-tile,.workspace-shortcut-icon{border-radius:10px}
+.outline-button,.solid-button,.text-button,.text-action,.action-button,.nav-item,.workspace-shortcut{transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
+.outline-button,.solid-button{min-height:40px;border-radius:9px;font-weight:650}
+.outline-button{border-color:#d9e3dc;background:#fff}
+.outline-button:hover{border-color:#a8c5b1;background:#f7fbf8}
+.solid-button,.primary-action{background:#176b45;border-color:#176b45}
+.solid-button:hover,.primary-action:hover{background:#125638;border-color:#125638;box-shadow:0 4px 12px rgba(23,107,69,.15)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(23,107,69,.2);outline-offset:2px}
+input,select,textarea{border-color:#dce5de;border-radius:9px}
+input:hover,select:hover,textarea:hover{border-color:#c5d5c9}
+.workspace-launcher{border:1px solid #dce6dd;border-radius:16px;box-shadow:0 4px 18px rgba(20,40,28,.035)}
+.workspace-shortcut{border:1px solid #e3e9e4;border-radius:11px;background:#fff}
+.workspace-shortcut:hover{transform:translateY(-1px);border-color:#b9d2c0;background:#f9fcfa}
+.schedule-banner,.location-card,.tip-card{border-radius:11px}
+.action-button{border-radius:11px}
+.action-button:disabled{opacity:.48;cursor:not-allowed;transform:none;box-shadow:none}
+.table-wrap,.admin-table-wrap{border-radius:11px;border-color:#e2e9e3}
+table{font-variant-numeric:tabular-nums}
+thead th{background:#f6f8f6}
+tbody tr{transition:background-color .14s ease}
+tbody tr:hover{background:#f8fbf8}
+.status-badge,.table-status,.leave-status{border-radius:999px;font-weight:700}
+.feedback{border-radius:8px}
+.toast{box-shadow:0 10px 32px rgba(15,35,24,.18);border-radius:10px}
+#view-overview .admin-page-intro{border-radius:16px;overflow:hidden}
+#view-overview .admin-stats .summary-card{border-radius:13px;box-shadow:0 2px 8px rgba(22,47,32,.035)}
+#view-overview .admin-attendance-panel,#view-overview .admin-adjustments-panel{border-radius:14px;box-shadow:0 2px 8px rgba(22,47,32,.025)}
+#view-overview .admin-attendance-table th{position:sticky;top:0;z-index:1}
+#view-overview .admin-attendance-table tbody tr:focus-within{background:#f3f8f4}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+@media(max-width:760px){
+  .topbar{height:64px}
+  .notice{align-items:flex-start;line-height:1.55}
+  .summary-card,.panel{border-radius:12px}
+  .panel{padding:16px}
+  .workspace-launcher{padding:16px}
+  .workspace-shortcut{min-height:64px}
+  #view-overview .admin-attendance-table th{position:static}
+}
+@media(max-width:430px){
+  .topbar .breadcrumb{display:none}
+  .panel-heading h2{font-size:17px}
+  .workspace-shortcut-copy small{line-height:1.45}
+}
