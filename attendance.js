@@ -7,7 +7,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
-const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], systemAttendanceRecords: [], editingEmployeeId: null, taskAssignees: [], taskDelegations: [] };
+const state = { user: null, profile: null, taskPage: 1, taskPageSize: 6, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], systemAttendanceRecords: [], editingEmployeeId: null, taskAssignees: [], taskDelegations: [] };
 const DEPARTMENTS = [{ id: "marketing", name: "Marketing" }, { id: "sales", name: "Kinh doanh" }, { id: "technical", name: "Kỹ thuật" }, { id: "finance_accounting", name: "Tài chính – Kế toán" }, { id: "administration_hr", name: "Hành chính – Nhân sự" }, { id: "legal", name: "Pháp chế" }, { id: "procurement_supply", name: "Mua hàng – Cung ứng" }];
 const departmentName = (id) => DEPARTMENTS.find((item) => item.id === id)?.name || "";
 const fmtTime = (date) => date ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date) : "--:--";
@@ -616,18 +616,33 @@ function renderTasks() {
   const list = $("task-list");
   list.replaceChildren();
   const filter = $("task-status-filter").value;
-  const visible = state.tasks.filter((task) => filter === "all" || task.status === filter);
+  const term = $("task-search").value.trim().toLocaleLowerCase("vi");
+  const filtered = state.tasks.filter(task => {
+    const status = task.status || "todo";
+    const statusMatch = filter === "active" ? status !== "done" : filter === "all" || status === filter;
+    const searchMatch = !term || [task.title, task.description, task.assigneeName, task.assigneeUid].join(" ").toLocaleLowerCase("vi").includes(term);
+    return statusMatch && searchMatch;
+  });
   $("task-total").textContent = String(state.tasks.length);
-  $("task-active").textContent = String(state.tasks.filter((task) => task.status === "in_progress").length);
-  $("task-pending").textContent = String(state.tasks.filter((task) => task.status !== "done").length);
-  if (!visible.length) {
+  $("task-active").textContent = String(state.tasks.filter(task => task.status === "in_progress").length);
+  $("task-pending").textContent = String(state.tasks.filter(task => task.status !== "done").length);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / state.taskPageSize));
+  state.taskPage = Math.min(Math.max(1, state.taskPage), pageCount);
+  const start = (state.taskPage - 1) * state.taskPageSize;
+  const pageItems = filtered.slice(start, start + state.taskPageSize);
+  $("task-list-summary").textContent = filtered.length ? "Hiển thị " + (start + 1) + "–" + Math.min(start + pageItems.length, filtered.length) + " / " + filtered.length + " công việc" : "0 công việc phù hợp";
+  $("task-page-label").textContent = "Trang " + state.taskPage + " / " + pageCount;
+  $("task-prev-page").disabled = state.taskPage <= 1;
+  $("task-next-page").disabled = state.taskPage >= pageCount;
+  $("task-pagination").style.display = filtered.length > state.taskPageSize ? "flex" : "none";
+  if (!filtered.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
     empty.textContent = state.tasks.length ? "Không có công việc phù hợp bộ lọc." : "Chưa có công việc. Khi được giao nhiệm vụ, công việc sẽ hiển thị tại đây.";
     list.append(empty);
     return;
   }
-  visible.forEach((task) => {
+  pageItems.forEach(task => {
     const card = document.createElement("article");
     card.className = "task-card";
     const top = document.createElement("div");
@@ -660,18 +675,21 @@ function renderTasks() {
       status.append(option);
     });
     status.value = task.status || "todo";
-    const assignedEmployee = state.taskAssignees.find((employee) => employee.id === task.assigneeUid);
+    const assignedEmployee = state.taskAssignees.find(employee => employee.id === task.assigneeUid);
     const canManageTask = taskRoleLevel(state.profile?.role) > taskRoleLevel(assignedEmployee?.role || "employee");
     status.disabled = task.assigneeUid !== state.user.uid && !canManageTask;
     status.addEventListener("change", async () => {
+      const previousStatus = task.status || "todo";
       status.disabled = true;
       try {
         await updateDoc(doc(db, "workspace_tasks", task.id), { status: status.value, updatedAt: serverTimestamp() });
         task.status = status.value;
+        state.taskPage = 1;
         toast("Đã cập nhật trạng thái công việc.");
         renderTasks();
       } catch (error) {
-        status.value = task.status || "todo";
+        status.value = previousStatus;
+        status.disabled = task.assigneeUid !== state.user.uid && !canManageTask;
         showError(error);
       }
     });
@@ -722,6 +740,7 @@ async function loadTasks() {
     const bd = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
     return bd-ad;
   });
+  state.taskPage = 1;
   renderTasks();
 }
 $("task-form").addEventListener("submit", async (event) => {
@@ -779,7 +798,10 @@ $("task-form").addEventListener("submit", async (event) => {
   }
 });
 $("task-open-employees").addEventListener("click", () => { if (state.profile?.role === "admin") showView("employees"); else toast("Quản lý hồ sơ nhân sự chỉ dành cho Admin hệ thống."); });
-$("task-status-filter").addEventListener("change", renderTasks);
+$("task-status-filter").addEventListener("change", () => { state.taskPage = 1; renderTasks(); });
+$("task-search").addEventListener("input", () => { state.taskPage = 1; renderTasks(); });
+$("task-prev-page").addEventListener("click", () => { state.taskPage = Math.max(1, state.taskPage - 1); renderTasks(); });
+$("task-next-page").addEventListener("click", () => { state.taskPage += 1; renderTasks(); });
 function setTaskDueMinimum() {
   const due = $("task-due");
   const today = todayKey();
