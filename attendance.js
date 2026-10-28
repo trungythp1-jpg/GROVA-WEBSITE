@@ -243,8 +243,9 @@ async function loadSystemAttendance() {
     const users = [];
     let userCursor = null;
     while (true) {
-      const constraints = [where("active", "==", true), limit(500)];
+      const constraints = [where("active", "==", true)];
       if (userCursor) constraints.push(startAfter(userCursor));
+      constraints.push(limit(500));
       const page = await getDocs(query(collection(db, "attendance_users"), ...constraints));
       users.push(...page.docs.map(item => ({ id: item.id, ...item.data() })));
       if (page.size < 500) break;
@@ -253,8 +254,9 @@ async function loadSystemAttendance() {
     const records = [];
     let recordCursor = null;
     while (true) {
-      const constraints = [where("date", ">=", from), where("date", "<=", to), orderBy("date"), limit(1000)];
+      const constraints = [where("date", ">=", from), where("date", "<=", to), orderBy("date")];
       if (recordCursor) constraints.push(startAfter(recordCursor));
+      constraints.push(limit(1000));
       const page = await getDocs(query(collection(db, "attendance_records"), ...constraints));
       records.push(...page.docs.map(item => ({ id: item.id, ...item.data() })));
       if (page.size < 1000) break;
