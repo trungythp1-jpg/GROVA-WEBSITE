@@ -723,6 +723,15 @@ $("task-form").addEventListener("submit", async (event) => {
 });
 $("task-open-employees").addEventListener("click", () => { if (state.profile?.role === "admin") showView("employees"); else toast("Quản lý hồ sơ nhân sự chỉ dành cho Admin hệ thống."); });
 $("task-status-filter").addEventListener("change", renderTasks);
+function setTaskDueMinimum() {
+  const due = $("task-due");
+  const today = todayKey();
+  due.min = today;
+  if (due.value && due.value < today) due.value = today;
+}
+$("task-due").addEventListener("focus", setTaskDueMinimum);
+$("task-due").addEventListener("change", setTaskDueMinimum);
+setTaskDueMinimum();
 $("task-refresh").addEventListener("click", () => loadTasks().catch(showError));
 async function loadSites() {
   const snapshot = await getDocs(query(collection(db, "attendance_sites"), where("active", "==", true)));
