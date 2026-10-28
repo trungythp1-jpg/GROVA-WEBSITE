@@ -219,9 +219,21 @@ function isSundayKey(key) {
 }
 async function loadSystemAttendance() {
   if (state.profile?.role !== "admin") throw new Error("Chỉ Admin được xem và in bảng công toàn hệ thống.");
+  const loadButton = $("load-system-attendance");
+  const printButtons = [$("print-system-attendance"), $("print-system-attendance-bottom")];
+  const errorNode = $("system-attendance-error");
+  const emptyNode = $("system-attendance-empty");
+  const tableWrap = document.querySelector(".system-attendance-table-wrap");
+  errorNode.hidden = true;
+  errorNode.textContent = "";
+  loadButton.disabled = true;
+  loadButton.textContent = "Đang tải…";
+  printButtons.forEach(button => { button.disabled = true; });
+  $("system-attendance-note").textContent = "Đang tải dữ liệu chấm công…";
   const from = $("system-attendance-from").value;
   const to = $("system-attendance-to").value;
-  if (!from || !to || from > to) throw new Error("Vui lòng chọn khoảng ngày hợp lệ.");
+  if (!from || !to || from > to) { loadButton.disabled = false; loadButton.textContent = "Xem bảng công"; throw new Error("Vui lòng chọn khoảng ngày hợp lệ."); }
+  try {
   const [usersSnap, recordsSnap] = await Promise.all([
     getDocs(query(collection(db, "attendance_users"), where("active", "==", true), limit(500))),
     getDocs(query(collection(db, "attendance_records"), where("date", ">=", from), where("date", "<=", to), limit(5000)))
@@ -258,8 +270,23 @@ async function loadSystemAttendance() {
     body.append(row);
   });
   if (!users.length) { const row=document.createElement("tr"),td=document.createElement("td"); td.colSpan=dates.length+3;td.textContent="Không có nhân sự đang hoạt động.";row.append(td);body.append(row); }
-  $("system-attendance-note").textContent = "Đã tổng hợp " + users.length + " nhân sự và " + dates.length + " ngày.";
+  $("system-attendance-note").textContent = "Đã tải " + users.length + " nhân sự · " + dates.length + " ngày · " + records.length + " bản ghi.";
   $("system-attendance-print-period").textContent = "Thời gian: " + from + " đến " + to + " · Chủ nhật: nghỉ hàng tuần";
+  emptyNode.hidden = users.length > 0;
+  tableWrap.hidden = users.length === 0;
+  printButtons.forEach(button => { button.disabled = users.length === 0; });
+  } catch (error) {
+    errorNode.hidden = false;
+    errorNode.textContent = error?.code === "permission-denied" ? "Firebase từ chối quyền đọc dữ liệu. Hãy kiểm tra tài khoản Admin và Firestore Rules." : "Không tải được bảng công: " + (error?.message || "Lỗi không xác định");
+    $("system-attendance-note").textContent = "Tải bảng công thất bại.";
+    emptyNode.hidden = false;
+    emptyNode.querySelector("strong").textContent = "Không tải được dữ liệu";
+    emptyNode.querySelector("span:last-child").textContent = "Kiểm tra thông báo lỗi phía trên rồi thử lại.";
+    throw error;
+  } finally {
+    loadButton.disabled = false;
+    loadButton.textContent = "Xem bảng công";
+  }
 }
 
 function showView(name) {
@@ -279,7 +306,7 @@ function showView(name) {
   if (name === "history") renderHistory();
   if (name === "requests") loadRequests().catch(showError);
   if (name === "sites") loadSites().catch(showError);
-  if (name === "overview") { loadOverview().catch(showError); if (state.profile?.role === "admin") { const now=todayKey(); const first=now.slice(0,8)+"01"; $("system-attendance-from").value ||= first; $("system-attendance-to").value ||= now; } }
+  if (name === "overview") { loadOverview().catch(showError); if (state.profile?.role === "admin") { const now=todayKey(); const first=now.slice(0,8)+"01"; $("system-attendance-from").value ||= first; $("system-attendance-to").value ||= now; loadSystemAttendance().catch(() => {}); } }
   if (name === "employees") loadEmployees().catch(showError);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -908,7 +935,8 @@ document.querySelectorAll("[data-view]").forEach((button) => button.addEventList
 document.querySelectorAll("[data-go]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.go)));
 $("filter-history").addEventListener("click", renderHistory);
 $("load-system-attendance").addEventListener("click", () => loadSystemAttendance().catch(showError));
-$("print-system-attendance").addEventListener("click", () => { if (state.profile?.role !== "admin") { toast("Chỉ Admin được in bảng công toàn hệ thống."); return; } if (!$("system-attendance-body").children.length || $("system-attendance-body").textContent.includes("Chọn khoảng ngày")) { toast("Hãy lọc bảng công trước khi in."); return; } window.print(); });
+$("print-system-attendance").addEventListener("click", () => { if (state.profile?.role !== "admin") { toast("Chỉ Admin được in bảng công toàn hệ thống."); return; } if ($("print-system-attendance").disabled) { toast("Hãy tải bảng công thành công trước khi in."); return; } window.print(); });
+$("print-system-attendance-bottom").addEventListener("click", () => { if (!$("print-system-attendance-bottom").disabled) window.print(); });
 $("schedule-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (state.profile?.role !== "admin") return;
