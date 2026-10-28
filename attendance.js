@@ -576,7 +576,7 @@ async function loadTaskAssignees() {
     const option = new Option([employee.displayName || employee.email || employee.id, departmentName(employee.departmentId) || employee.department].filter(Boolean).join(" · "), employee.id);
     select.append(option);
   });
-  $("task-assignee-meta").textContent = isAdmin ? employees.length + " nhân sự đang hoạt động · Admin có thể giao việc toàn công ty." : employees.length + " nhân sự cùng phòng ban đang hoạt động · Giao việc khác phòng ban cần được Admin ủy quyền.";
+  $("task-assignee-meta").textContent = isAdmin ? employees.length + " nhân sự đang hoạt động · Admin có thể giao việc toàn công ty." : employees.length + " nhân sự cùng phòng ban đang hoạt động · Hiện tại chỉ Admin được giao việc khác phòng ban.";
 }
 async function loadTasks() {
   const manager = taskRoleLevel(state.profile?.role) >= 2;
@@ -611,9 +611,9 @@ $("task-form").addEventListener("submit", async (event) => {
     const profile = assigneeSnapshot.data();
     if (taskRoleLevel(state.profile?.role) <= taskRoleLevel(profile.role)) throw new Error("Chỉ được giao việc cho nhân sự có cấp bậc thấp hơn.");
     const targetDepartmentId = profile.departmentId || "";
-    const sourceDepartmentId = state.profile?.role === "admin" ? targetDepartmentId : (state.profile?.departmentId || "");
+    const sourceDepartmentId = state.profile?.departmentId || (state.profile?.role === "admin" ? targetDepartmentId : "");
     if (!sourceDepartmentId || !targetDepartmentId) throw new Error("Hồ sơ người giao và người nhận phải được Admin phân phòng ban trước khi giao việc.");
-    if (state.profile?.role !== "admin" && sourceDepartmentId !== targetDepartmentId) throw new Error("Chỉ được giao việc trong cùng phòng ban. Muốn giao khác phòng ban, hãy đề nghị Admin cấp quyền ủy quyền.");
+    if (state.profile?.role !== "admin" && sourceDepartmentId !== targetDepartmentId) throw new Error("Hiện tại chỉ Admin được giao việc khác phòng ban. Cơ chế ủy quyền liên phòng ban sẽ được bổ sung ở bước tiếp theo.");
     await addDoc(collection(db, "workspace_tasks"), {
       title: $("task-title").value.trim(),
       description: $("task-description").value.trim(),
