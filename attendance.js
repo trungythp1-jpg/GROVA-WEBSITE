@@ -397,7 +397,7 @@ function exportSystemAttendanceCsv() {
       ]);
     }
   }
-  const csvCell = value => { const cell = String(value ?? ""); const safe = /^[\\u0000-\\u0020]*[=+\\-@]/.test(cell) ? "'" + cell : cell; return '"' + safe.replaceAll('"', '""') + '"' };
+  const csvCell = value => { const cell = String(value ?? ""); const safe = /^[\u0000-\u0020]*[=+\-@]/.test(cell) ? "'" + cell : cell; return '"' + safe.replaceAll('"', '""') + '"' };
   const csv = "\ufeff" + rows.map(row => row.map(csvCell).join(",")).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
