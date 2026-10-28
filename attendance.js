@@ -7,7 +7,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
-const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null, taskAssignees: [], taskDelegations: [] };
+const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], systemAttendanceRecords: [], editingEmployeeId: null, taskAssignees: [], taskDelegations: [] };
 const DEPARTMENTS = [{ id: "marketing", name: "Marketing" }, { id: "sales", name: "Kinh doanh" }, { id: "technical", name: "Kỹ thuật" }, { id: "finance_accounting", name: "Tài chính – Kế toán" }, { id: "administration_hr", name: "Hành chính – Nhân sự" }, { id: "legal", name: "Pháp chế" }, { id: "procurement_supply", name: "Mua hàng – Cung ứng" }];
 const departmentName = (id) => DEPARTMENTS.find((item) => item.id === id)?.name || "";
 const fmtTime = (date) => date ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date) : "--:--";
@@ -167,6 +167,7 @@ function updateClockOutAvailability() {
   $("clock-out").disabled = !state.user || !state.clockIn || Boolean(state.clockOut) || currentVietnamMinutes() < allowedAt;
 }
 function renderAttendance() {
+  const sundayOff = new Date(todayKey() + "T12:00:00+07:00").getDay() === 0;
   $("clock-in-value").textContent = fmtTime(state.clockIn);
   $("clock-out-value").textContent = fmtTime(state.clockOut);
   $("duration-value").textContent = durationText();
@@ -174,16 +175,16 @@ function renderAttendance() {
   const startMinutes = timeToMinutes(state.schedule.startTime);
   const endMinutes = timeToMinutes(state.schedule.endTime);
   const late = Boolean(state.clockIn && vietnamMinutesForDate(state.clockIn) > startMinutes);
-  $("clock-in").disabled = !state.user || Boolean(state.clockIn);
+  $("clock-in").disabled = !state.user || Boolean(state.clockIn) || sundayOff;
   updateClockOutAvailability();
   $("schedule-hours").textContent = state.schedule.startTime + " – " + state.schedule.endTime;
-  $("schedule-message").textContent = late ? "Bạn đã vào ca muộn so với giờ bắt đầu " + state.schedule.startTime + "." : "Chấm công sau " + state.schedule.startTime + " sẽ được ghi nhận đi muộn.";
+  $("schedule-message").textContent = sundayOff ? "Hôm nay là Chủ nhật — công ty nghỉ, không cần chấm công." : late ? "Bạn đã vào ca muộn so với giờ bắt đầu " + state.schedule.startTime + "." : "Chấm công sau " + state.schedule.startTime + " sẽ được ghi nhận đi muộn.";
   const adminPanel = $("schedule-admin-panel");
   if (adminPanel) adminPanel.style.display = state.profile?.role === "admin" ? "" : "none";
   const status = $("attendance-status");
   status.className = "status-badge " + (state.clockOut ? "good" : late ? "late" : "pending");
-  status.textContent = state.clockOut ? "Đã hoàn thành" : late ? "Đi muộn" : state.clockIn ? "Đang làm việc" : "Chưa chấm công";
-  $("status-caption").textContent = state.clockOut ? "Đã ghi nhận vào ca và tan ca" : state.clockIn ? "Bạn đã bắt đầu ca làm việc" : "Bắt đầu bằng thao tác vào ca";
+  status.textContent = sundayOff && !state.clockIn ? "Nghỉ Chủ nhật" : state.clockOut ? "Đã hoàn thành" : late ? "Đi muộn" : state.clockIn ? "Đang làm việc" : "Chưa chấm công";
+  $("status-caption").textContent = sundayOff && !state.clockIn ? "Ngày nghỉ hàng tuần của công ty" : state.clockOut ? "Đã ghi nhận vào ca và tan ca" : state.clockIn ? "Bạn đã bắt đầu ca làm việc" : "Bắt đầu bằng thao tác vào ca";
   $("timeline-in").classList.toggle("done", Boolean(state.clockIn));
   $("timeline-out").classList.toggle("done", Boolean(state.clockOut));
   $("timeline-in-text").textContent = state.clockIn ? "Đã ghi nhận trên hệ thống" : "Đang chờ ghi nhận";
@@ -205,6 +206,60 @@ function renderAttendance() {
   });
   rows.append(row);
 }
+
+function dateKeyAddDays(key, amount) {
+  const date = new Date(key + "T12:00:00+07:00");
+  date.setDate(date.getDate() + amount);
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(date);
+}
+function isSundayKey(key) {
+  return new Date(key + "T12:00:00+07:00").getDay() === 0;
+}
+async function loadSystemAttendance() {
+  if (state.profile?.role !== "admin") throw new Error("Chỉ Admin được xem và in bảng công toàn hệ thống.");
+  const from = $("system-attendance-from").value;
+  const to = $("system-attendance-to").value;
+  if (!from || !to || from > to) throw new Error("Vui lòng chọn khoảng ngày hợp lệ.");
+  const [usersSnap, recordsSnap] = await Promise.all([
+    getDocs(query(collection(db, "attendance_users"), where("active", "==", true), limit(500))),
+    getDocs(query(collection(db, "attendance_records"), where("date", ">=", from), where("date", "<=", to), limit(5000)))
+  ]);
+  const users = usersSnap.docs.map(item => ({ id: item.id, ...item.data() })).sort((a,b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
+  const records = recordsSnap.docs.map(item => ({ id: item.id, ...item.data() }));
+  const dates = [];
+  for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
+  const byKey = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
+  const head = $("system-attendance-head"), body = $("system-attendance-body");
+  head.replaceChildren(); body.replaceChildren();
+  const headRow = document.createElement("tr");
+  ["NHÂN VIÊN", "BỘ PHẬN", ...dates.map(day => isSundayKey(day) ? day.slice(8) + "/" + day.slice(5,7) + " CN" : day.slice(8) + "/" + day.slice(5,7)), "TỔNG NGÀY CÔNG"].forEach(label => {
+    const th = document.createElement("th"); th.textContent = label; headRow.append(th);
+  });
+  head.append(headRow);
+  users.forEach(user => {
+    const row = document.createElement("tr");
+    [user.displayName || user.email || user.id, user.department || "Chưa phân bộ phận"].forEach(value => { const td=document.createElement("td"); td.textContent=value; row.append(td); });
+    let worked = 0;
+    dates.forEach(day => {
+      const td = document.createElement("td");
+      if (isSundayKey(day)) { td.textContent = "Nghỉ"; td.className = "sunday-cell"; }
+      else {
+        const record = byKey.get(user.id + "_" + day);
+        const start = asDate(record?.clockInAt), end = asDate(record?.clockOutAt);
+        if (start && end) { td.textContent = fmtTime(start) + "–" + fmtTime(end); worked += 1; td.className = "attendance-worked"; }
+        else if (start) { td.textContent = fmtTime(start) + "–…"; td.className = "attendance-open"; }
+        else { td.textContent = "—"; td.className = "attendance-missing"; }
+      }
+      row.append(td);
+    });
+    const total = document.createElement("td"); total.textContent = String(worked); total.className = "attendance-total"; row.append(total);
+    body.append(row);
+  });
+  if (!users.length) { const row=document.createElement("tr"),td=document.createElement("td"); td.colSpan=dates.length+3;td.textContent="Không có nhân sự đang hoạt động.";row.append(td);body.append(row); }
+  $("system-attendance-note").textContent = "Đã tổng hợp " + users.length + " nhân sự và " + dates.length + " ngày.";
+  $("system-attendance-print-period").textContent = "Thời gian: " + from + " đến " + to + " · Chủ nhật: nghỉ hàng tuần";
+}
+
 function showView(name) {
   if (["overview", "sites"].includes(name) && !["admin", "manager"].includes(state.profile?.role)) {
     toast("Bạn không có quyền truy cập mục này");
@@ -222,7 +277,7 @@ function showView(name) {
   if (name === "history") renderHistory();
   if (name === "requests") loadRequests().catch(showError);
   if (name === "sites") loadSites().catch(showError);
-  if (name === "overview") loadOverview().catch(showError);
+  if (name === "overview") { loadOverview().catch(showError); if (state.profile?.role === "admin") { const now=todayKey(); const first=now.slice(0,8)+"01"; $("system-attendance-from").value ||= first; $("system-attendance-to").value ||= now; } }
   if (name === "employees") loadEmployees().catch(showError);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -798,6 +853,7 @@ async function requireLocationAndSite() {
 }
 $("clock-in").addEventListener("click", async () => {
   if (!state.user) return;
+  if (new Date(todayKey() + "T12:00:00+07:00").getDay() === 0) { toast("Chủ nhật là ngày nghỉ của công ty, không cần chấm công."); return; }
   try {
     const site = await requireLocationAndSite();
     if (state.recordId || state.clockIn) throw new Error("Bạn đã chấm công vào ca hôm nay.");
@@ -812,6 +868,7 @@ $("clock-in").addEventListener("click", async () => {
 });
 $("clock-out").addEventListener("click", async () => {
   if (!state.user || !state.recordId || !state.clockIn || state.clockOut) return;
+  if (new Date(todayKey() + "T12:00:00+07:00").getDay() === 0) { toast("Chủ nhật là ngày nghỉ của công ty."); return; }
   try {
     const site = await requireLocationAndSite();
     if (state.location.accuracy > 100) throw new Error("GPS chưa đủ chính xác (trên 100 m). Hãy thử lại ngoài trời.");
@@ -826,6 +883,8 @@ $("locate").addEventListener("click", getLocation);
 document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
 document.querySelectorAll("[data-go]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.go)));
 $("filter-history").addEventListener("click", renderHistory);
+$("load-system-attendance").addEventListener("click", () => loadSystemAttendance().catch(showError));
+$("print-system-attendance").addEventListener("click", () => { if (state.profile?.role !== "admin") { toast("Chỉ Admin được in bảng công toàn hệ thống."); return; } if (!$("system-attendance-body").children.length || $("system-attendance-body").textContent.includes("Chọn khoảng ngày")) { toast("Hãy lọc bảng công trước khi in."); return; } window.print(); });
 $("schedule-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (state.profile?.role !== "admin") return;
