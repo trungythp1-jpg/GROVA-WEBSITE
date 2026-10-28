@@ -76,7 +76,7 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /attendance_users/{uid} {
-      allow get: if signedIn() && (request.auth.uid == uid || isManager());
+      allow get: if activeUser() && (request.auth.uid == uid || roleLevel(userProfile().role) >= 2);
       allow list: if activeUser() && roleLevel(userProfile().role) >= 2;
       allow create: if isAdmin()
         && request.resource.data.keys().hasAll(['displayName', 'email', 'department', 'departmentId', 'role', 'active'])
