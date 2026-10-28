@@ -181,7 +181,7 @@ service cloud.firestore {
         && validDepartment(request.resource.data.targetDepartmentId)
         && (isAdmin() || request.resource.data.sourceDepartmentId == userProfile().departmentId)
         && request.resource.data.targetDepartmentId == taskAssigneeProfile(request.resource.data.assigneeUid).departmentId
-        && (isAdmin() || (userProfile().role == 'manager' && request.resource.data.sourceDepartmentId == request.resource.data.targetDepartmentId && request.resource.data.delegationId == null) || validTaskDelegation(request.resource.data.delegationId, request.resource.data.sourceDepartmentId, request.resource.data.targetDepartmentId))
+        && (isAdmin() || (roleLevel(userProfile().role) >= 2 && request.resource.data.sourceDepartmentId == request.resource.data.targetDepartmentId && request.resource.data.delegationId == null) || validTaskDelegation(request.resource.data.delegationId, request.resource.data.sourceDepartmentId, request.resource.data.targetDepartmentId))
         && roleLevel(userProfile().role) > taskAssigneeLevel(request.resource.data.assigneeUid)
         && request.resource.data.status == 'todo'
         && request.resource.data.priority in ['normal', 'high', 'urgent']
