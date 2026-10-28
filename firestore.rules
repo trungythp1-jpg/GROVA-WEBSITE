@@ -133,7 +133,7 @@ service cloud.firestore {
         && request.resource.data.createdByName is string
         && validDepartment(request.resource.data.sourceDepartmentId)
         && validDepartment(request.resource.data.targetDepartmentId)
-        && request.resource.data.sourceDepartmentId == userProfile().departmentId
+        && (isAdmin() || request.resource.data.sourceDepartmentId == userProfile().departmentId)
         && request.resource.data.targetDepartmentId == taskAssigneeProfile(request.resource.data.assigneeUid).departmentId
         && (isAdmin() || request.resource.data.sourceDepartmentId == request.resource.data.targetDepartmentId)
         && roleLevel(userProfile().role) > taskAssigneeLevel(request.resource.data.assigneeUid)
