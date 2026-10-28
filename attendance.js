@@ -953,8 +953,33 @@ document.querySelectorAll("[data-view]").forEach((button) => button.addEventList
 document.querySelectorAll("[data-go]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.go)));
 $("filter-history").addEventListener("click", renderHistory);
 $("load-system-attendance").addEventListener("click", () => loadSystemAttendance().catch(showError));
-$("print-system-attendance").addEventListener("click", () => { if (state.profile?.role !== "admin") { toast("Chỉ Admin được in bảng công toàn hệ thống."); return; } if ($("print-system-attendance").disabled) { toast("Hãy tải bảng công thành công trước khi in."); return; } window.print(); });
-$("print-system-attendance-bottom").addEventListener("click", () => { if (!$("print-system-attendance-bottom").disabled) window.print(); });
+function printSystemAttendance() {
+  if (state.profile?.role !== "admin") { toast("Chỉ Admin được in bảng công toàn hệ thống."); return; }
+  if ($("print-system-attendance").disabled || $("system-attendance-table-wrap")?.hidden === true || $("system-attendance-body").children.length === 0) {
+    toast("Hãy tải bảng công thành công trước khi in.");
+    return;
+  }
+  const table = $("system-attendance-print-area").cloneNode(true);
+  const empty = table.querySelector("#system-attendance-empty");
+  if (empty) empty.remove();
+  const wrap = table.querySelector(".system-attendance-table-wrap");
+  if (wrap) wrap.hidden = false;
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    document.body.classList.add("system-attendance-print-mode");
+    window.print();
+    document.body.classList.remove("system-attendance-print-mode");
+    return;
+  }
+  const styles = Array.from(document.querySelectorAll("link[rel='stylesheet'], style")).map(node => node.outerHTML).join("\\n");
+  printWindow.document.open();
+  printWindow.document.write("<!doctype html><html lang='vi'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Bảng chấm công toàn hệ thống</title>" + styles + "<style>body{background:#fff!important;color:#111!important;font-family:Arial,sans-serif!important;margin:0;padding:10mm}*{box-sizing:border-box}.system-attendance-print-heading{display:block!important;text-align:center;margin:0 0 12px}.system-attendance-print-heading h2{font-size:15px;color:#111;margin:0 0 6px}.system-attendance-print-heading p{font-size:10px;color:#333;margin:0}.system-attendance-table-wrap{display:block!important;overflow:visible!important;border:0!important}.system-attendance-table{width:100%!important;min-width:0!important;border-collapse:collapse!important;font-size:7px!important}.system-attendance-table th,.system-attendance-table td{padding:4px 3px!important;border:1px solid #bbb!important;font-size:7px!important;color:#111!important;background:#fff!important;white-space:normal!important;overflow-wrap:anywhere!important}.system-attendance-table th:first-child,.system-attendance-table td:first-child{min-width:90px!important}.system-attendance-table th:nth-child(2),.system-attendance-table td:nth-child(2){min-width:65px!important}@page{size:A4 landscape;margin:8mm}</style></head><body>" + table.outerHTML + "</body></html>");
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.onload = () => { printWindow.print(); };
+}
+$("print-system-attendance").addEventListener("click", printSystemAttendance);
+$("print-system-attendance-bottom").addEventListener("click", printSystemAttendance);
 $("schedule-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (state.profile?.role !== "admin") return;
