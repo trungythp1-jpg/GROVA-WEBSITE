@@ -181,6 +181,8 @@ function renderAttendance() {
   $("schedule-message").textContent = sundayOff ? "Hôm nay là Chủ nhật — công ty nghỉ, không cần chấm công." : late ? "Bạn đã vào ca muộn so với giờ bắt đầu " + state.schedule.startTime + "." : "Chấm công sau " + state.schedule.startTime + " sẽ được ghi nhận đi muộn.";
   const adminPanel = $("schedule-admin-panel");
   if (adminPanel) adminPanel.style.display = state.profile?.role === "admin" ? "" : "none";
+  const systemPanel = $("system-attendance-panel");
+  if (systemPanel) systemPanel.style.display = state.profile?.role === "admin" ? "" : "none";
   const status = $("attendance-status");
   status.className = "status-badge " + (state.clockOut ? "good" : late ? "late" : "pending");
   status.textContent = sundayOff && !state.clockIn ? "Nghỉ Chủ nhật" : state.clockOut ? "Đã hoàn thành" : late ? "Đi muộn" : state.clockIn ? "Đang làm việc" : "Chưa chấm công";
@@ -446,12 +448,12 @@ function renderAdminAttendance(){
  const rows=$("employee-rows");if(!rows)return;rows.replaceChildren();
  const term=$("employee-search").value.trim().toLocaleLowerCase("vi"),dept=$("employee-department-filter").value,filter=$("employee-status-filter").value;
  const map=new Map((state.adminAttendanceRecords||[]).map(x=>[x.uid,x]));
- const data=(state.employees||[]).map(user=>{const record=map.get(user.id),start=asDate(record?.clockInAt),end=asDate(record?.clockOutAt),late=!!(start&&fmtTime(start)>(state.schedule?.startTime||"08:00")),status=record?.adminAdjusted?"adjusted":late?"late":end?"checked-out":start?"checked-in":"missing";return{user,record,start,end,status};}).filter(x=>(!term||[x.user.displayName,x.user.email,x.user.department,x.user.id].join(" ").toLocaleLowerCase("vi").includes(term))&&(!dept||x.user.department===dept)&&(!filter||x.status===filter));
+ const data=(state.employees||[]).map(user=>{const record=map.get(user.id),start=asDate(record?.clockInAt),end=asDate(record?.clockOutAt),late=!!(start&&fmtTime(start)>(state.schedule?.startTime||"08:00")),sundayOff=isSundayKey($("admin-attendance-date").value||todayKey())&&!record,status=record?.adminAdjusted?"adjusted":late?"late":end?"checked-out":start?"checked-in":sundayOff?"sunday":"missing";return{user,record,start,end,status};}).filter(x=>(!term||[x.user.displayName,x.user.email,x.user.department,x.user.id].join(" ").toLocaleLowerCase("vi").includes(term))&&(!dept||x.user.department===dept)&&(!filter||x.status===filter));
  $("employee-result-count").textContent=data.length+" nhân sự";
  if(!data.length){const row=document.createElement("tr"),cell=document.createElement("td");cell.colSpan=7;cell.className="empty-cell";cell.textContent="Không có nhân sự phù hợp bộ lọc.";row.append(cell);rows.append(row);return;}
  data.forEach(({user,record,start,end,status})=>{const row=document.createElement("tr"),nameCell=document.createElement("td"),wrap=document.createElement("div");wrap.className="admin-employee-name";const name=document.createElement("strong");name.textContent=user.displayName||user.email||user.id;const email=document.createElement("small");email.textContent=user.email||"";wrap.append(name,email);nameCell.append(wrap);row.append(nameCell);
  [user.department||"Chưa phân bộ phận",fmtTime(start),fmtTime(end),start&&end?Math.floor((end-start)/3600000)+"h "+String(Math.floor((end-start)/60000)%60).padStart(2,"0")+"m":"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v;row.append(td);});
- const td=document.createElement("td"),badge=document.createElement("span");badge.className="table-status "+(status==="checked-out"?"good":status==="late"?"late":status==="adjusted"?"adjusted":status==="missing"?"muted-status":"");badge.textContent=({ "checked-out":"Đã tan ca",late:"Đi muộn",adjusted:"Đã điều chỉnh","checked-in":"Đang làm",missing:"Chưa chấm"})[status];td.append(badge);row.append(td);
+ const td=document.createElement("td"),badge=document.createElement("span");badge.className="table-status "+(status==="checked-out"?"good":status==="late"?"late":status==="adjusted"?"adjusted":status==="missing"?"muted-status":"");badge.textContent=({ "checked-out":"Đã tan ca",late:"Đi muộn",adjusted:"Đã điều chỉnh","checked-in":"Đang làm",missing:"Chưa chấm",sunday:"Nghỉ Chủ nhật"})[status];td.append(badge);row.append(td);
  const action=document.createElement("td"),btn=document.createElement("button");btn.type="button";btn.className="outline-button table-detail-button";btn.textContent="Chi tiết";btn.addEventListener("click",()=>showAttendanceDetails(user,record,start,end));action.append(btn);row.append(action);rows.append(row);
  });
 }
