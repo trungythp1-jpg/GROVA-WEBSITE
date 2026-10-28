@@ -959,6 +959,7 @@ function printSystemAttendance() {
   const report = state.systemAttendanceReport;
   if (!report || $("print-system-attendance").disabled) { toast("Hãy tải bảng chấm công thành công trước khi in."); return; }
   const { users, records, from, to } = report;
+  const escapeHtml = value => String(value ?? "").replace(/[&<>"\']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"' : "&quot;", "\'": "&#39;" }[character]));
   const recordMap = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
   const dates = [];
   for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
@@ -983,6 +984,7 @@ function printSystemAttendance() {
   if (!printWindow) { toast("Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại."); return; }
   const logo = new URL("assets/grova_logo.png", document.baseURI).href;
   const companyUrl = "https://trungythp1-jpg.github.io/GROVA-WEBSITE/";
+  printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bảng chấm công toàn hệ thống — GROVA HOLDINGS</title><style>
 @page{size:A4 landscape;margin:12mm 10mm}
 *{box-sizing:border-box}html,body{margin:0;padding:0;color:#172c3a;font-family:"Be Vietnam Pro",Arial,sans-serif;font-size:10px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -992,7 +994,6 @@ body{position:relative;background:#fff}.watermark{position:fixed;z-index:0;left:
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
-  printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
 }
 $("print-system-attendance").addEventListener("click", printSystemAttendance);
 $("print-system-attendance-bottom").addEventListener("click", printSystemAttendance);
