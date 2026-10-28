@@ -636,7 +636,7 @@ async function loadTaskAssignees() {
       if (employee.active !== true || taskRoleLevel(state.profile?.role) <= taskRoleLevel(employee.role) || employee.id === state.user?.uid || !employee.departmentId) return false;
       if (isAdmin) return true;
       if (!actorDepartmentId) return false;
-      if (employee.departmentId === actorDepartmentId) return state.profile?.role === "manager";
+      if (employee.departmentId === actorDepartmentId) return true;
       return state.taskDelegations.some((delegation) => delegationIsValid(delegation, actorDepartmentId, employee.departmentId));
     });
   state.taskAssignees = employees;
