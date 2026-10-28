@@ -709,8 +709,9 @@ $("task-form").addEventListener("submit", async (event) => {
     $("task-form").reset();
     $("task-priority").value = "normal";
     $("task-feedback").textContent = "Đã giao công việc.";
+    $("task-feedback").className = "feedback success";
     toast("Đã giao công việc.");
-    await loadTasks();
+    loadTasks().catch(showError);
   } catch (error) {
     $("task-feedback").textContent = error.message || "Không thể tạo công việc.";
     $("task-feedback").className = "feedback error";
