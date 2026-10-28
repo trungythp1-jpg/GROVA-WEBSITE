@@ -109,3 +109,35 @@
 #task-assignee:focus{outline:none;border-color:#628b70;box-shadow:0 0 0 3px #2c704b12}
 #task-assignee-meta{display:block;margin-top:5px;font-size:10px}
 @media(max-width:760px){.task-create-heading{flex-direction:column;align-items:stretch}.task-create-heading>#task-open-employees{align-self:flex-start}}
+
+.system-attendance-panel{margin-top:18px;padding:22px;border:1px solid #dfe6dc;border-radius:14px;background:#fff}
+.system-attendance-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;align-items:end;gap:12px;margin:16px 0}
+.system-attendance-filters label{display:grid;gap:7px;color:#56695c;font-size:11px;font-weight:700}
+.system-attendance-filters input{width:100%;box-sizing:border-box;min-height:42px;padding:10px;border:1px solid #dbe4da;border-radius:8px;background:#fbfcf9;color:#243b2d;font:inherit}
+.system-attendance-print-heading{display:none}
+.system-attendance-table-wrap{max-width:100%;overflow:auto;border:1px solid #e0e7df;border-radius:9px}
+.system-attendance-table{border-collapse:collapse;width:100%;min-width:max-content;font-size:10px}
+.system-attendance-table th{background:#f4f7f1;color:#526456;font-size:9px;white-space:nowrap}
+.system-attendance-table th,.system-attendance-table td{padding:9px 8px;border:1px solid #e3e9e1;text-align:center}
+.system-attendance-table th:first-child,.system-attendance-table td:first-child{text-align:left;min-width:140px}
+.system-attendance-table th:nth-child(2),.system-attendance-table td:nth-child(2){text-align:left;min-width:100px}
+.system-attendance-table .sunday-cell{background:#f0f2ed;color:#758075}
+.system-attendance-table .attendance-worked{color:#286545;background:#f5faf5}
+.system-attendance-table .attendance-open{color:#946d2f;background:#fffaf0}
+.system-attendance-table .attendance-missing{color:#9a5a50}
+.system-attendance-table .attendance-total{font-weight:800}
+@media(max-width:760px){.system-attendance-filters{grid-template-columns:1fr}.system-attendance-filters button{width:100%}.system-attendance-panel{padding:14px}}
+@media print{
+ @page{size:A4 landscape;margin:8mm}
+ body *{visibility:hidden!important}
+ #system-attendance-print-area,#system-attendance-print-area *{visibility:visible!important}
+ #system-attendance-print-area{position:absolute;left:0;top:0;width:100%;padding:0!important;margin:0!important}
+ .system-attendance-print-heading{display:block;text-align:center;margin:0 0 10px}
+ .system-attendance-print-heading h2{font-size:14px;color:#111;margin:0 0 5px}
+ .system-attendance-print-heading p{font-size:10px;color:#333;margin:0}
+ .system-attendance-table-wrap{overflow:visible!important;border:0!important}
+ .system-attendance-table{width:100%!important;min-width:0!important;font-size:7px!important}
+ .system-attendance-table th,.system-attendance-table td{padding:3px 2px!important;font-size:7px!important;color:#111!important;background:#fff!important;white-space:normal!important;overflow-wrap:anywhere}
+ .system-attendance-table th:first-child,.system-attendance-table td:first-child{min-width:90px!important}
+ .system-attendance-table th:nth-child(2),.system-attendance-table td:nth-child(2){min-width:65px!important}
+}
