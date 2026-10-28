@@ -190,9 +190,14 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && exists(/databases/$(database)/documents/attendance_users/$(request.resource.data.assigneeUid))
         && get(/databases/$(database)/documents/attendance_users/$(request.resource.data.assigneeUid)).data.active == true;
-      allow read: if activeUser() && (resource.data.assigneeUid == request.auth.uid || resource.data.createdBy == request.auth.uid || roleLevel(userProfile().role) > taskAssigneeLevel(resource.data.assigneeUid));
+      allow read: if activeUser()
+        && (resource.data.assigneeUid == request.auth.uid
+          || resource.data.createdBy == request.auth.uid
+          || isAdmin()
+          || (userProfile().role == 'manager' && resource.data.targetDepartmentId == userProfile().departmentId)
+          || (resource.data.delegationId is string && validTaskDelegation(resource.data.delegationId, resource.data.sourceDepartmentId, resource.data.targetDepartmentId)));
       allow update: if activeUser()
-        && (resource.data.assigneeUid == request.auth.uid || roleLevel(userProfile().role) > taskAssigneeLevel(resource.data.assigneeUid))
+        && (resource.data.assigneeUid == request.auth.uid || resource.data.createdBy == request.auth.uid || isAdmin())
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
         && request.resource.data.status in ['todo', 'in_progress', 'done']
         && request.resource.data.updatedAt == request.time;
