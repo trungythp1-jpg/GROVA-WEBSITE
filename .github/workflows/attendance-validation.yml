@@ -1,0 +1,59 @@
+name: Attendance validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "attendance.js"
+      - "attendance.html"
+      - ".github/workflows/attendance-validation.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check JavaScript syntax
+        run: node --input-type=module --check < attendance.js
+      - name: Validate attendance report markup
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          class Document(HTMLParser):
+              def __init__(self):
+                  super().__init__(convert_charrefs=True)
+                  self.ids = []
+              def handle_starttag(self, tag, attrs):
+                  values = dict(attrs)
+                  if values.get("id"):
+                      self.ids.append(values["id"])
+
+          parser = Document()
+          parser.feed(Path("attendance.html").read_text(encoding="utf-8"))
+          duplicates = sorted({item for item in parser.ids if parser.ids.count(item) > 1})
+          required = {
+              "load-system-attendance",
+              "print-system-attendance",
+              "print-system-attendance-bottom",
+              "export-system-attendance-csv",
+              "system-attendance-from",
+              "system-attendance-to",
+              "system-attendance-error",
+              "system-attendance-head",
+              "system-attendance-body",
+              "system-attendance-empty",
+              "system-attendance-note",
+              "system-attendance-print-period",
+          }
+          missing = sorted(required - set(parser.ids))
+          if duplicates or missing:
+              raise SystemExit(f"Duplicate IDs: {duplicates}; missing report IDs: {missing}")
+          print("Attendance report markup IDs passed.")
+          PY
