@@ -141,3 +141,11 @@
  .system-attendance-table th:first-child,.system-attendance-table td:first-child{min-width:90px!important}
  .system-attendance-table th:nth-child(2),.system-attendance-table td:nth-child(2){min-width:65px!important}
 }
+
+.task-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.task-filters input[type="search"]{min-width:170px;max-width:240px;min-height:38px;padding:8px 11px;border:1px solid #dce5de;border-radius:9px;background:#fff;color:#304537;font:inherit;font-size:12px}
+.task-list-summary{margin:12px 0;color:#7b8980;font-size:11px}
+.task-pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:18px}
+.task-pagination span{min-width:100px;text-align:center;color:#617267;font-size:12px;font-weight:650}
+.task-pagination button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:760px){.task-filters{display:grid;grid-template-columns:1fr 1fr;width:100%}.task-filters input[type="search"]{grid-column:1/-1;width:100%;max-width:none;box-sizing:border-box}.task-filters select{min-width:0;width:100%}.task-filters button{width:100%}}
