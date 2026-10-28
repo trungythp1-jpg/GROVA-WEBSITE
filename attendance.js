@@ -8,6 +8,8 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
 const state = { user: null, profile: null, clockIn: null, clockOut: null, location: null, recordId: null, requests: [], leaveRequests: [], schedule: { startTime: "08:00", endTime: "17:30" }, sites: [], records: [], employees: [], tasks: [], editingEmployeeId: null, taskAssignees: [] };
+const DEPARTMENTS = [{ id: "marketing", name: "Marketing" }, { id: "sales", name: "Kinh doanh" }, { id: "technical", name: "Kỹ thuật" }, { id: "finance_accounting", name: "Tài chính – Kế toán" }, { id: "administration_hr", name: "Hành chính – Nhân sự" }, { id: "legal", name: "Pháp chế" }, { id: "procurement_supply", name: "Mua hàng – Cung ứng" }];
+const departmentName = (id) => DEPARTMENTS.find((item) => item.id === id)?.name || "";
 const fmtTime = (date) => date ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(date) : "--:--";
 const fmtDate = (date) => new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Ho_Chi_Minh" }).format(date);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
@@ -450,7 +452,7 @@ function renderEmployees() {
   }
   state.employees.forEach((employee) => {
     const row = document.createElement("tr");
-    const values = [employee.displayName || employee.email || employee.id, employee.department || "Chưa phân bộ phận", employee.role || "employee", employee.active === true ? "Đang hoạt động" : "Đã khóa"];
+    const values = [employee.displayName || employee.email || employee.id, departmentName(employee.departmentId) || employee.department || "Chưa phân bộ phận", employee.role || "employee", employee.active === true ? "Đang hoạt động" : "Đã khóa"];
     values.forEach((value, index) => {
       const cell = document.createElement("td");
       if (index === 3) {
@@ -472,7 +474,7 @@ function renderEmployees() {
       $("employee-uid").disabled = true;
       $("employee-name").value = employee.displayName || "";
       $("employee-email").value = employee.email || "";
-      $("employee-department").value = employee.department || "";
+      $("employee-department").value = employee.departmentId || "";
       $("employee-role").value = ["employee", "team_lead", "manager", "department_head", "executive_director", "admin"].includes(employee.role) ? employee.role : "employee";
       $("employee-active").checked = employee.active === true;
       $("employee-form-title").textContent = "Sửa hồ sơ nhân viên";
@@ -562,17 +564,19 @@ async function loadTaskAssignees() {
   if (taskRoleLevel(state.profile?.role) < 2) return;
   const select = $("task-assignee");
   const snapshot = await getDocs(query(collection(db, "attendance_users"), limit(500)));
+  const isAdmin = state.profile?.role === "admin";
+  const actorDepartmentId = state.profile?.departmentId || "";
   const employees = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
-    .filter((employee) => employee.active === true && taskRoleLevel(state.profile?.role) > taskRoleLevel(employee.role) && employee.id !== state.user?.uid);
+    .filter((employee) => employee.active === true && taskRoleLevel(state.profile?.role) > taskRoleLevel(employee.role) && employee.id !== state.user?.uid && Boolean(employee.departmentId) && (isAdmin || (Boolean(actorDepartmentId) && employee.departmentId === actorDepartmentId)));
   state.taskAssignees = employees;
   employees.sort((a, b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
   select.replaceChildren();
   select.append(new Option(employees.length ? "Chọn nhân sự nhận việc" : "Chưa có nhân sự đang hoạt động", ""));
   employees.forEach((employee) => {
-    const option = new Option([employee.displayName || employee.email || employee.id, employee.department].filter(Boolean).join(" · "), employee.id);
+    const option = new Option([employee.displayName || employee.email || employee.id, departmentName(employee.departmentId) || employee.department].filter(Boolean).join(" · "), employee.id);
     select.append(option);
   });
-  $("task-assignee-meta").textContent = employees.length + " nhân sự đang hoạt động · Người nhận thấy nhiệm vụ trong mục Công việc của tôi.";
+  $("task-assignee-meta").textContent = isAdmin ? employees.length + " nhân sự đang hoạt động · Admin có thể giao việc toàn công ty." : employees.length + " nhân sự cùng phòng ban đang hoạt động · Giao việc khác phòng ban cần được Admin ủy quyền.";
 }
 async function loadTasks() {
   const manager = taskRoleLevel(state.profile?.role) >= 2;
@@ -606,11 +610,17 @@ $("task-form").addEventListener("submit", async (event) => {
     if (!assigneeSnapshot.exists() || assigneeSnapshot.data().active !== true) throw new Error("Không tìm thấy hồ sơ nhân viên đang hoạt động với UID này.");
     const profile = assigneeSnapshot.data();
     if (taskRoleLevel(state.profile?.role) <= taskRoleLevel(profile.role)) throw new Error("Chỉ được giao việc cho nhân sự có cấp bậc thấp hơn.");
+    const sourceDepartmentId = state.profile?.departmentId || "";
+    const targetDepartmentId = profile.departmentId || "";
+    if (!sourceDepartmentId || !targetDepartmentId) throw new Error("Hồ sơ người giao và người nhận phải được Admin phân phòng ban trước khi giao việc.");
+    if (state.profile?.role !== "admin" && sourceDepartmentId !== targetDepartmentId) throw new Error("Chỉ được giao việc trong cùng phòng ban. Muốn giao khác phòng ban, hãy đề nghị Admin cấp quyền ủy quyền.");
     await addDoc(collection(db, "workspace_tasks"), {
       title: $("task-title").value.trim(),
       description: $("task-description").value.trim(),
       assigneeUid,
       assigneeName: profile.displayName || profile.email || assigneeUid,
+      sourceDepartmentId,
+      targetDepartmentId,
       createdBy: state.user.uid,
       createdByName: state.profile.displayName || state.user.email || "",
       status: "todo",
@@ -864,11 +874,12 @@ $("employee-form").addEventListener("submit", async (event) => {
   const uid = $("employee-uid").value.trim();
   const displayName = $("employee-name").value.trim();
   const email = $("employee-email").value.trim();
-  const department = $("employee-department").value.trim();
+  const departmentId = $("employee-department").value;
+  const department = departmentName(departmentId);
   const role = $("employee-role").value;
   const active = $("employee-active").checked;
-  if (uid.length < 10 || !displayName || !["employee", "team_lead", "manager", "department_head", "executive_director", "admin"].includes(role)) {
-    $("employee-feedback").textContent = "Kiểm tra UID, họ tên và vai trò.";
+  if (uid.length < 10 || !displayName || !departmentId || !DEPARTMENTS.some((item) => item.id === departmentId) || !["employee", "team_lead", "manager", "department_head", "executive_director", "admin"].includes(role)) {
+    $("employee-feedback").textContent = "Kiểm tra UID, họ tên, phòng ban và vai trò.";
     $("employee-feedback").classList.add("error");
     return;
   }
@@ -876,7 +887,7 @@ $("employee-form").addEventListener("submit", async (event) => {
     const ref = doc(db, "attendance_users", uid);
     const existing = await getDoc(ref);
     if (!existing.exists() && state.editingEmployeeId) throw new Error("Không tìm thấy hồ sơ cần cập nhật.");
-    await setDoc(ref, { displayName, email, department, role, active }, { merge: true });
+    await setDoc(ref, { displayName, email, department, departmentId, role, active }, { merge: true });
     $("employee-feedback").classList.remove("error");
     $("employee-feedback").textContent = "Đã lưu hồ sơ nhân viên.";
     await loadEmployees();
