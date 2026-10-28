@@ -610,8 +610,8 @@ $("task-form").addEventListener("submit", async (event) => {
     if (!assigneeSnapshot.exists() || assigneeSnapshot.data().active !== true) throw new Error("Không tìm thấy hồ sơ nhân viên đang hoạt động với UID này.");
     const profile = assigneeSnapshot.data();
     if (taskRoleLevel(state.profile?.role) <= taskRoleLevel(profile.role)) throw new Error("Chỉ được giao việc cho nhân sự có cấp bậc thấp hơn.");
-    const sourceDepartmentId = state.profile?.departmentId || "";
     const targetDepartmentId = profile.departmentId || "";
+    const sourceDepartmentId = state.profile?.role === "admin" ? targetDepartmentId : (state.profile?.departmentId || "");
     if (!sourceDepartmentId || !targetDepartmentId) throw new Error("Hồ sơ người giao và người nhận phải được Admin phân phòng ban trước khi giao việc.");
     if (state.profile?.role !== "admin" && sourceDepartmentId !== targetDepartmentId) throw new Error("Chỉ được giao việc trong cùng phòng ban. Muốn giao khác phòng ban, hãy đề nghị Admin cấp quyền ủy quyền.");
     await addDoc(collection(db, "workspace_tasks"), {
