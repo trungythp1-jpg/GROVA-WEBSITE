@@ -1114,50 +1114,18 @@ function printSystemAttendance() {
     }).join("");
     return '<tr><td class="employee">' + escapeHtml(user.displayName || user.email || user.id) + '<small>' + escapeHtml(user.email || "") + '</small></td><td class="department">' + escapeHtml(user.department || departmentName(user.departmentId) || "Chưa phân bộ phận") + '</td>' + cells + '<td class="total">' + worked + '</td></tr>';
   }).join("");
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) { toast("Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại."); return; }
   const logo = new URL("assets/grova_logo.png", document.baseURI).href;
   const companyUrl = "https://trungythp1-jpg.github.io/GROVA-WEBSITE/";
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bảng chấm công toàn hệ thống — GROVA HOLDINGS</title><style>
 @page{size:A3 landscape;margin:9mm}*{box-sizing:border-box}html,body{margin:0;padding:0;color:#172c3a;font-family:"Be Vietnam Pro",Arial,sans-serif;font-size:9px;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{position:relative;background:#fff}.watermark{position:fixed;z-index:0;left:50%;top:50%;transform:translate(-50%,-50%);width:270px;height:auto;opacity:.055;pointer-events:none}.page{position:relative;z-index:1}.header{display:flex;align-items:center;gap:14px;padding:0 0 8px;border-bottom:2px solid #07518b}.logo{width:82px;height:auto;object-fit:contain}.company{flex:1}.company h1{margin:0;color:#07518b;font-size:16px;letter-spacing:.8px;font-weight:800}.company p{margin:2px 0;color:#4c6659;font-size:8px}.title{text-align:center;margin:9px 0}.title h2{margin:0 0 4px;font-size:14px;color:#172c3a}.title p{margin:2px 0;color:#4b5d53}.meta{display:flex;justify-content:space-between;border-top:1px solid #dce5dd;border-bottom:1px solid #dce5dd;padding:5px 0;margin-bottom:7px;font-size:8px}.table-wrap{width:100%}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7px}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{border:1px solid #cbd8ce;padding:3px 1px;text-align:center;vertical-align:middle;overflow-wrap:anywhere}th{background:#07518b;color:#fff;font-weight:700}th.employee,td.employee{width:145px;text-align:left}td.employee{font-weight:700}td.employee small{display:block;font-size:6px;font-weight:400;color:#607367}th.department,td.department{width:76px;text-align:left}th.day{width:24px}th.total,td.total{width:36px;font-weight:700}.sunday{background:#eaf1f7;color:#07518b;font-weight:700}.done{color:#176a45;font-weight:700}.done span,.open span{color:#52685a;font-weight:400}.open{color:#996b16;font-weight:700}.empty{color:#9aa69f}.footer{margin-top:8px;padding-top:5px;border-top:1px solid #dce5dd;display:flex;justify-content:space-between;color:#52685a;font-size:7px}.footer strong{color:#07518b}.legend{margin-top:6px;font-size:7px;color:#52685a}.signatures{display:flex;justify-content:space-around;gap:20px;margin-top:14px;text-align:center;break-inside:avoid}.signatures div{width:30%;font-size:8px}.signatures b{display:block;margin-bottom:30px}
 </style></head><body><img class="watermark" src="${logo}" alt=""><div class="page"><header class="header"><img class="logo" src="${logo}" alt="Logo GROVA HOLDINGS"><div class="company"><h1>GROVA HOLDINGS</h1><p>HỆ SINH THÁI DOANH NGHIỆP GROVA</p><p>GROVA ELEVATOR · GROVA ELEVATOR INTERIORS · GROVA LAW · GROVA EDUCATION</p><p>Website: ${companyUrl}</p></div></header><section class="title"><h2>BẢNG CHẤM CÔNG TOÀN HỆ THỐNG</h2><p>Kỳ chấm công: ${fmtDate(from)} – ${fmtDate(to)} · Chủ nhật nghỉ hàng tuần</p></section><div class="meta"><span><b>Tổng nhân sự:</b> ${users.length}</span><span><b>Tổng ngày trong kỳ:</b> ${days.length}</span><span><b>Ngày lập:</b> ${fmtDate(todayKey())}</span></div><div class="table-wrap"><table><thead><tr><th class="employee">HỌ VÀ TÊN</th><th class="department">BỘ PHẬN</th>${days.map(day => '<th class="day">' + day.n + (day.sunday ? '<br>N' : '') + '</th>').join("")}<th class="total">TỔNG NGÀY CÔNG</th></tr></thead><tbody>${rows}</tbody></table></div><div class="legend"><b>Ký hiệu:</b> N = nghỉ Chủ nhật · Mỗi ô ngày hiển thị giờ vào và giờ ra · — = chưa có dữ liệu chấm công</div><footer class="footer"><span><strong>GROVA HOLDINGS</strong> · Bảng chấm công nội bộ</span><span>${companyUrl}</span><span>Ngày lập: ${fmtDate(todayKey())}</span></footer><div class="signatures"><div><b>NGƯỜI LẬP BẢNG</b>(Ký, ghi rõ họ tên)</div><div><b>QUẢN LÝ NHÂN SỰ</b>(Ký, ghi rõ họ tên)</div><div><b>ĐẠI DIỆN CÔNG TY</b>(Ký, ghi rõ họ tên)</div></div></div></body></html>`;
-  const existing = document.getElementById("attendance-print-preview");
-  if (existing) existing.remove();
-  const parsed = new DOMParser().parseFromString(html, "text/html");
-  const overlay = document.createElement("div");
-  overlay.id = "attendance-print-preview";
-  overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:#fff;overflow:auto;padding:16px";
-  const toolbar = document.createElement("div");
-  toolbar.id = "attendance-print-toolbar";
-  toolbar.style.cssText = "position:sticky;top:0;z-index:2;display:flex;gap:10px;padding:10px;background:#fff;border-bottom:1px solid #dbe5ea;margin:-16px -16px 16px";
-  const printButton = document.createElement("button");
-  printButton.type = "button";
-  printButton.textContent = "In / Lưu PDF";
-  printButton.style.cssText = "padding:12px 16px;background:#07518b;color:#fff;border:0;border-radius:9px;font-weight:700";
-  const closeButton = document.createElement("button");
-  closeButton.type = "button";
-  closeButton.textContent = "Đóng";
-  closeButton.style.cssText = "padding:12px 16px;background:#e9efea;border:0;border-radius:9px";
-  const reportContent = document.createElement("div");
-  reportContent.id = "attendance-print-document";
-  reportContent.innerHTML = parsed.body.innerHTML;
-  const reportStyle = document.createElement("style");
-  reportStyle.id = "attendance-print-styles";
-  reportStyle.textContent = Array.from(parsed.head.querySelectorAll("style")).map(style => style.textContent).join("\\n") + "\\n@media screen{#attendance-print-document{max-width:none;margin:0 auto}#attendance-print-document .page{max-width:none}}@media print{@page{size:A3 landscape;margin:9mm}body>*:not(#attendance-print-preview){display:none!important}#attendance-print-preview{position:static!important;display:block!important;overflow:visible!important;padding:0!important;background:#fff!important}#attendance-print-toolbar{display:none!important}#attendance-print-document{display:block!important}html,body{width:100%!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important}}";
-  printButton.addEventListener("click", () => {
-    try {
-      window.focus();
-      window.print();
-    } catch {
-      toast("Safari chưa mở được hộp thoại in. Hãy thử mở trang bằng Safari rồi chọn Chia sẻ > In.");
-    }
-  });
-  closeButton.addEventListener("click", () => {
-    overlay.remove();
-    reportStyle.remove();
-  });
-  toolbar.append(printButton, closeButton);
-  overlay.append(toolbar, reportContent);
-  document.head.append(reportStyle);
-  document.body.append(overlay);
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  window.setTimeout(() => { try { printWindow.print(); } catch { toast("Không mở được hộp thoại in. Hãy thử mở báo cáo bằng Safari."); } }, 500);
 }
 $("print-system-attendance").addEventListener("click", printSystemAttendance);
 $("print-system-attendance-bottom").addEventListener("click", printSystemAttendance);
