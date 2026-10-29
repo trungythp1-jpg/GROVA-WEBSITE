@@ -216,3 +216,53 @@
  .system-attendance-table th:first-child,.system-attendance-table td:first-child{min-width:90px!important}
  .system-attendance-table th:nth-child(2),.system-attendance-table td:nth-child(2){min-width:65px!important}
 }
+
+
+@media(max-width:760px){
+  html,body{width:100%;max-width:100%;overflow-x:hidden}
+  .app-shell{width:100%;max-width:100%;overflow-x:clip}
+  .sidebar{position:sticky;inset:auto;top:0;width:100%;height:auto;min-height:0;padding:8px 10px;flex-direction:row;align-items:center;gap:7px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;z-index:20;background:#062c4c}
+  .brand{flex:0 0 auto;gap:0;padding:0 5px 0 0;margin:0}
+  .brand>span:not(.brand-mark){display:none}
+  .attendance-logo{width:36px;height:36px;flex-basis:36px}
+  .side-label,.sidebar-bottom{display:none!important}
+  .nav-item{flex:0 0 auto;width:auto;min-height:40px;margin:0;padding:9px 10px;gap:6px;font-size:11px}
+  .nav-item span{width:auto;font-size:15px}
+  .nav-item.active{box-shadow:inset 0 -2px #75c900}
+  .main{margin-left:0!important;width:100%;max-width:100%;padding:0 14px 24px!important}
+  .topbar{height:auto;min-height:58px;gap:10px}
+  .topbar>div:first-child{min-width:0}
+  .topbar strong{font-size:10px}
+  .top-actions{gap:8px}
+  .outline-button#logout-button{min-height:38px;padding:8px 11px;font-size:12px}
+  .notice{margin:14px 0 20px;padding:12px;line-height:1.55}
+  .page-intro{align-items:flex-start;flex-direction:column;gap:12px;margin-bottom:18px}
+  .page-intro h1{font-size:clamp(24px,6vw,32px);overflow-wrap:anywhere}
+  .live-time{font-size:20px}
+  .workspace-launcher{padding:16px!important;margin-bottom:16px}
+  .workspace-topline{align-items:flex-start;flex-direction:column;gap:12px}
+  .workspace-topline h2{font-size:clamp(22px,5.5vw,28px);line-height:1.2}
+  .workspace-intro{font-size:14px;line-height:1.6}
+  .workspace-pill{max-width:100%;white-space:normal}
+  .workspace-shortcuts{grid-template-columns:minmax(0,1fr)!important;gap:10px}
+  .workspace-shortcut{width:100%;min-width:0;padding:12px;gap:10px}
+  .workspace-shortcut-copy{min-width:0}
+  .workspace-shortcut-copy strong,.workspace-shortcut-copy small{overflow-wrap:anywhere}
+  .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .summary-card{padding:14px;min-width:0}
+  .work-grid,.bottom-grid,.employee-admin-grid{grid-template-columns:minmax(0,1fr)!important}
+  .panel{padding:16px}
+  .clock-actions{grid-template-columns:minmax(0,1fr)}
+  .action-button{min-width:0}
+}
+@media(max-width:430px){
+  .main{padding:0 12px 20px!important}
+  .topbar{min-height:54px}
+  .top-actions{gap:6px}
+  .outline-button#logout-button{padding:7px 9px;font-size:11px}
+  .avatar{width:32px;height:32px;flex:0 0 32px}
+  .workspace-shortcut-icon{flex:0 0 42px}
+  .workspace-arrow{flex:0 0 auto}
+  .summary-card{padding:12px}
+  .metric{font-size:22px}
+}
