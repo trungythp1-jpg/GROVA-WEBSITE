@@ -1146,8 +1146,10 @@ function printSystemAttendance() {
   printView.append(toolbar, reportContent);
   document.head.append(printStyle);
   document.body.append(printView);
-  window.print();
+  printView.scrollTop = 0;
+  toast("Đã mở bản xem trước. Bấm In / Lưu PDF trong bản xem trước để in.");
 }
+$("preview-system-attendance").addEventListener("click", printSystemAttendance);
 $("print-system-attendance").addEventListener("click", printSystemAttendance);
 $("print-system-attendance-bottom").addEventListener("click", printSystemAttendance);
 $("schedule-form").addEventListener("submit", async (event) => {
