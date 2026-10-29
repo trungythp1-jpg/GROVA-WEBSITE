@@ -1243,7 +1243,7 @@ $("export-csv").addEventListener("click", () => {
     const mins = start && end ? Math.floor((end - start) / 60000) : 0;
     return [item.date, item.siteName || "", fmtTime(start), fmtTime(end), end ? Math.floor(mins / 60) + "h " + String(mins % 60).padStart(2, "0") + "m" : "", end ? "Đủ công" : "Chờ xác nhận"];
   })];
-  const csv = "\\ufeff" + rows.map(row => row.map(value => '"' + String(value ?? "").replaceAll('"', '""') + '"').join(",")).join("\\r\\n");
+  const csv = "\ufeff" + rows.map(row => row.map(value => '"' + String(value ?? "").replaceAll('"', '""') + '"').join(",")).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
