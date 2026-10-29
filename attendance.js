@@ -1121,11 +1121,13 @@ function printSystemAttendance() {
 </style></head><body><img class="watermark" src="${logo}" alt=""><div class="page"><header class="header"><img class="logo" src="${logo}" alt="Logo GROVA HOLDINGS"><div class="company"><h1>GROVA HOLDINGS</h1><p>HỆ SINH THÁI DOANH NGHIỆP GROVA</p><p>GROVA ELEVATOR · GROVA ELEVATOR INTERIORS · GROVA LAW · GROVA EDUCATION</p><p>Website: ${companyUrl}</p></div></header><section class="title"><h2>BẢNG CHẤM CÔNG TOÀN HỆ THỐNG</h2><p>Kỳ chấm công: ${fmtDate(from)} – ${fmtDate(to)} · Chủ nhật nghỉ hàng tuần</p></section><div class="meta"><span><b>Tổng nhân sự:</b> ${users.length}</span><span><b>Tổng ngày trong kỳ:</b> ${days.length}</span><span><b>Ngày lập:</b> ${fmtDate(todayKey())}</span></div><div class="table-wrap"><table><thead><tr><th class="employee">HỌ VÀ TÊN</th><th class="department">BỘ PHẬN</th>${days.map(day => '<th class="day">' + day.n + (day.sunday ? '<br>N' : '') + '</th>').join("")}<th class="total">TỔNG NGÀY CÔNG</th></tr></thead><tbody>${rows}</tbody></table></div><div class="legend"><b>Ký hiệu:</b> N = nghỉ Chủ nhật · Mỗi ô ngày hiển thị giờ vào và giờ ra · — = chưa có dữ liệu chấm công</div><footer class="footer"><span><strong>GROVA HOLDINGS</strong> · Bảng chấm công nội bộ</span><span>${companyUrl}</span><span>Ngày lập: ${fmtDate(todayKey())}</span></footer><div class="signatures"><div><b>NGƯỜI LẬP BẢNG</b>(Ký, ghi rõ họ tên)</div><div><b>QUẢN LÝ NHÂN SỰ</b>(Ký, ghi rõ họ tên)</div><div><b>ĐẠI DIỆN CÔNG TY</b>(Ký, ghi rõ họ tên)</div></div></div></body></html>`;
   const existing = document.getElementById("attendance-print-preview");
   if (existing) existing.remove();
+  const parsed = new DOMParser().parseFromString(html, "text/html");
   const overlay = document.createElement("div");
   overlay.id = "attendance-print-preview";
-  overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:#f4f6f3;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)";
+  overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:#fff;overflow:auto;padding:16px";
   const toolbar = document.createElement("div");
-  toolbar.style.cssText = "display:flex;align-items:center;gap:10px;padding:12px;background:#fff;border-bottom:1px solid #dbe5ea";
+  toolbar.id = "attendance-print-toolbar";
+  toolbar.style.cssText = "position:sticky;top:0;z-index:2;display:flex;gap:10px;padding:10px;background:#fff;border-bottom:1px solid #dbe5ea;margin:-16px -16px 16px";
   const printButton = document.createElement("button");
   printButton.type = "button";
   printButton.textContent = "In / Lưu PDF";
@@ -1134,32 +1136,28 @@ function printSystemAttendance() {
   closeButton.type = "button";
   closeButton.textContent = "Đóng";
   closeButton.style.cssText = "padding:12px 16px;background:#e9efea;border:0;border-radius:9px";
-  const frame = document.createElement("iframe");
-  frame.title = "Xem trước bảng chấm công";
-  frame.style.cssText = "display:block;width:100%;flex:1;min-height:0;border:0;background:#fff";
-  printButton.disabled = true;
-  printButton.textContent = "Đang chuẩn bị bản in…";
-  frame.addEventListener("load", () => {
-    printButton.disabled = false;
-    printButton.textContent = "In / Lưu PDF";
-  }, { once: true });
+  const reportContent = document.createElement("div");
+  reportContent.id = "attendance-print-document";
+  reportContent.innerHTML = parsed.body.innerHTML;
+  const reportStyle = document.createElement("style");
+  reportStyle.id = "attendance-print-styles";
+  reportStyle.textContent = Array.from(parsed.head.querySelectorAll("style")).map(style => style.textContent).join("\\n") + "\\n@media screen{#attendance-print-document{max-width:none;margin:0 auto}#attendance-print-document .page{max-width:none}}@media print{@page{size:A3 landscape;margin:9mm}body>*:not(#attendance-print-preview){display:none!important}#attendance-print-preview{position:static!important;display:block!important;overflow:visible!important;padding:0!important;background:#fff!important}#attendance-print-toolbar{display:none!important}#attendance-print-document{display:block!important}html,body{width:100%!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important}}";
   printButton.addEventListener("click", () => {
-    if (!frame.contentDocument || !frame.contentDocument.body || !frame.contentDocument.body.innerHTML) {
-      toast("Bản xem trước chưa tải xong. Vui lòng đợi rồi thử lại.");
-      return;
-    }
     try {
-      frame.contentWindow.focus();
-      frame.contentWindow.print();
+      window.focus();
+      window.print();
     } catch {
-      toast("Safari chưa mở được hộp thoại in. Hãy dùng nút Chia sẻ của Safari rồi chọn In.");
+      toast("Safari chưa mở được hộp thoại in. Hãy thử mở trang bằng Safari rồi chọn Chia sẻ > In.");
     }
   });
-  closeButton.addEventListener("click", () => overlay.remove());
+  closeButton.addEventListener("click", () => {
+    overlay.remove();
+    reportStyle.remove();
+  });
   toolbar.append(printButton, closeButton);
-  overlay.append(toolbar, frame);
+  overlay.append(toolbar, reportContent);
+  document.head.append(reportStyle);
   document.body.append(overlay);
-  frame.srcdoc = html;
 }
 $("print-system-attendance").addEventListener("click", printSystemAttendance);
 $("print-system-attendance-bottom").addEventListener("click", printSystemAttendance);
