@@ -1137,19 +1137,29 @@ function printSystemAttendance() {
   const frame = document.createElement("iframe");
   frame.title = "Xem trước bảng chấm công";
   frame.style.cssText = "display:block;width:100%;flex:1;min-height:0;border:0;background:#fff";
-  frame.srcdoc = html;
+  printButton.disabled = true;
+  printButton.textContent = "Đang chuẩn bị bản in…";
+  frame.addEventListener("load", () => {
+    printButton.disabled = false;
+    printButton.textContent = "In / Lưu PDF";
+  }, { once: true });
   printButton.addEventListener("click", () => {
+    if (!frame.contentDocument || !frame.contentDocument.body || !frame.contentDocument.body.innerHTML) {
+      toast("Bản xem trước chưa tải xong. Vui lòng đợi rồi thử lại.");
+      return;
+    }
     try {
       frame.contentWindow.focus();
       frame.contentWindow.print();
     } catch {
-      toast("Không mở được hộp thoại in. Hãy mở bằng Safari để in.");
+      toast("Safari chưa mở được hộp thoại in. Hãy dùng nút Chia sẻ của Safari rồi chọn In.");
     }
   });
   closeButton.addEventListener("click", () => overlay.remove());
   toolbar.append(printButton, closeButton);
   overlay.append(toolbar, frame);
   document.body.append(overlay);
+  frame.srcdoc = html;
 }
 $("print-system-attendance").addEventListener("click", printSystemAttendance);
 $("print-system-attendance-bottom").addEventListener("click", printSystemAttendance);
