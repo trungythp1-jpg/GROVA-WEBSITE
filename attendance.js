@@ -1136,9 +1136,9 @@ function printSystemAttendance() {
   closeButton.type = "button";
   closeButton.textContent = "Đóng";
   closeButton.style.cssText = "padding:12px 16px;background:#e9efea;border:0;border-radius:9px";
-  const report = document.createElement("div");
-  report.id = "attendance-print-document";
-  report.innerHTML = parsed.body.innerHTML;
+  const reportContent = document.createElement("div");
+  reportContent.id = "attendance-print-document";
+  reportContent.innerHTML = parsed.body.innerHTML;
   const reportStyle = document.createElement("style");
   reportStyle.id = "attendance-print-styles";
   reportStyle.textContent = Array.from(parsed.head.querySelectorAll("style")).map(style => style.textContent).join("\\n") + "\\n@media screen{#attendance-print-document{max-width:none;margin:0 auto}#attendance-print-document .page{max-width:none}}@media print{@page{size:A3 landscape;margin:9mm}body>*:not(#attendance-print-preview){display:none!important}#attendance-print-preview{position:static!important;display:block!important;overflow:visible!important;padding:0!important;background:#fff!important}#attendance-print-toolbar{display:none!important}#attendance-print-document{display:block!important}html,body{width:100%!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important}}";
@@ -1155,7 +1155,7 @@ function printSystemAttendance() {
     reportStyle.remove();
   });
   toolbar.append(printButton, closeButton);
-  overlay.append(toolbar, report);
+  overlay.append(toolbar, reportContent);
   document.head.append(reportStyle);
   document.body.append(overlay);
 }
