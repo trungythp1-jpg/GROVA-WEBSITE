@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, setDoc, runTransaction, updateDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, addDoc, setDoc, runTransaction, updateDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
@@ -221,6 +221,7 @@ async function loadSystemAttendance() {
   if (state.profile?.role !== "admin") throw new Error("Chỉ Admin được xem và in bảng công toàn hệ thống.");
   const loadButton = $("load-system-attendance");
   const printButtons = [$("print-system-attendance"), $("print-system-attendance-bottom")];
+  const exportButton = $("export-system-attendance-csv");
   const errorNode = $("system-attendance-error");
   const emptyNode = $("system-attendance-empty");
   const tableWrap = document.querySelector(".system-attendance-table-wrap");
@@ -229,57 +230,121 @@ async function loadSystemAttendance() {
   loadButton.disabled = true;
   loadButton.textContent = "Đang tải…";
   printButtons.forEach(button => { button.disabled = true; });
+  if (exportButton) exportButton.disabled = true;
   $("system-attendance-note").textContent = "Đang tải dữ liệu chấm công…";
   const from = $("system-attendance-from").value;
   const to = $("system-attendance-to").value;
-  if (!from || !to || from > to) { loadButton.disabled = false; loadButton.textContent = "Xem bảng công"; throw new Error("Vui lòng chọn khoảng ngày hợp lệ."); }
+  if (!from || !to || from > to) {
+    loadButton.disabled = false;
+    loadButton.textContent = "Xem bảng công";
+    throw new Error("Vui lòng chọn khoảng ngày hợp lệ.");
+  }
   try {
-  const [usersSnap, recordsSnap] = await Promise.all([
-    getDocs(query(collection(db, "attendance_users"), where("active", "==", true), limit(500))),
-    getDocs(query(collection(db, "attendance_records"), where("date", ">=", from), where("date", "<=", to), limit(5000)))
-  ]);
-  const users = usersSnap.docs.map(item => ({ id: item.id, ...item.data() })).sort((a,b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
-  const records = recordsSnap.docs.map(item => ({ id: item.id, ...item.data() }));
-  state.systemAttendanceReport = { users, records, from, to };
-  const dates = [];
-  for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
-  const byKey = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
-  const head = $("system-attendance-head"), body = $("system-attendance-body");
-  head.replaceChildren(); body.replaceChildren();
-  const headRow = document.createElement("tr");
-  ["NHÂN VIÊN", "BỘ PHẬN", ...dates.map(day => isSundayKey(day) ? day.slice(8) + "/" + day.slice(5,7) + " CN" : day.slice(8) + "/" + day.slice(5,7)), "TỔNG NGÀY CÔNG"].forEach(label => {
-    const th = document.createElement("th"); th.textContent = label; headRow.append(th);
-  });
-  head.append(headRow);
-  users.forEach(user => {
-    const row = document.createElement("tr");
-    [user.displayName || user.email || user.id, user.department || "Chưa phân bộ phận"].forEach(value => { const td=document.createElement("td"); td.textContent=value; row.append(td); });
-    let worked = 0;
-    dates.forEach(day => {
-      const td = document.createElement("td");
-      if (isSundayKey(day)) { td.textContent = "Nghỉ"; td.className = "sunday-cell"; }
-      else {
+    const users = [];
+    let userCursor = null;
+    while (true) {
+      const constraints = [where("active", "==", true)];
+      if (userCursor) constraints.push(startAfter(userCursor));
+      constraints.push(limit(500));
+      const page = await getDocs(query(collection(db, "attendance_users"), ...constraints));
+      users.push(...page.docs.map(item => ({ id: item.id, ...item.data() })));
+      if (page.size < 500) break;
+      userCursor = page.docs[page.docs.length - 1];
+    }
+    const records = [];
+    let recordCursor = null;
+    while (true) {
+      const constraints = [where("date", ">=", from), where("date", "<=", to), orderBy("date")];
+      if (recordCursor) constraints.push(startAfter(recordCursor));
+      constraints.push(limit(1000));
+      const page = await getDocs(query(collection(db, "attendance_records"), ...constraints));
+      records.push(...page.docs.map(item => ({ id: item.id, ...item.data() })));
+      if (page.size < 1000) break;
+      recordCursor = page.docs[page.docs.length - 1];
+    }
+    users.sort((a,b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
+    const userById = new Map(users.map(user => [user.id, user]));
+    state.systemAttendanceReport = { users, records, from, to };
+    const dates = [];
+    for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
+    const byKey = new Map();
+    records.forEach(record => {
+      const key = String(record.uid) + "_" + String(record.date);
+      const prior = byKey.get(key);
+      if (!prior || (asDate(record.clockOutAt)?.getTime() || 0) > (asDate(prior.clockOutAt)?.getTime() || 0)) byKey.set(key, record);
+    });
+    const head = $("system-attendance-head"), body = $("system-attendance-body");
+    head.replaceChildren();
+    body.replaceChildren();
+    const headRow = document.createElement("tr");
+    ["NHÂN VIÊN", "BỘ PHẬN", ...dates.map(day => isSundayKey(day) ? day.slice(8) + "/" + day.slice(5,7) + " CN" : day.slice(8) + "/" + day.slice(5,7)), "TỔNG NGÀY CÔNG"].forEach(label => {
+      const th = document.createElement("th");
+      th.textContent = label;
+      headRow.append(th);
+    });
+    head.append(headRow);
+    users.forEach(user => {
+      const row = document.createElement("tr");
+      [user.displayName || user.email || user.id, user.department || departmentName(user.departmentId) || "Chưa phân bộ phận"].forEach(value => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        row.append(td);
+      });
+      let worked = 0;
+      dates.forEach(day => {
+        const td = document.createElement("td");
         const record = byKey.get(user.id + "_" + day);
         const start = asDate(record?.clockInAt), end = asDate(record?.clockOutAt);
-        if (start && end) { td.textContent = fmtTime(start) + "–" + fmtTime(end); worked += 1; td.className = "attendance-worked"; }
-        else if (start) { td.textContent = fmtTime(start) + "–…"; td.className = "attendance-open"; }
-        else { td.textContent = "—"; td.className = "attendance-missing"; }
-      }
-      row.append(td);
+        if (isSundayKey(day)) {
+          const approvedSunday = Boolean(record?.adminAdjusted && record?.adjustedBy && userById.get(record.adjustedBy)?.role === "admin" && start && end);
+          if (approvedSunday) {
+            td.textContent = fmtTime(start) + "–" + fmtTime(end);
+            td.className = "attendance-worked";
+            worked += 1;
+          } else if (start || end) {
+            td.textContent = "Chờ Admin";
+            td.className = "attendance-open";
+          } else {
+            td.textContent = "Nghỉ";
+            td.className = "sunday-cell";
+          }
+        } else if (start && end) {
+          td.textContent = fmtTime(start) + "–" + fmtTime(end);
+          td.className = "attendance-worked";
+          worked += 1;
+        } else if (start || end) {
+          td.textContent = (start ? fmtTime(start) : "—") + "–" + (end ? fmtTime(end) : "…");
+          td.className = "attendance-open";
+        } else {
+          td.textContent = "Chờ xác nhận";
+          td.className = "attendance-missing";
+        }
+        row.append(td);
+      });
+      const total = document.createElement("td");
+      total.textContent = String(worked);
+      total.className = "attendance-total";
+      row.append(total);
+      body.append(row);
     });
-    const total = document.createElement("td"); total.textContent = String(worked); total.className = "attendance-total"; row.append(total);
-    body.append(row);
-  });
-  if (!users.length) { const row=document.createElement("tr"),td=document.createElement("td"); td.colSpan=dates.length+3;td.textContent="Không có nhân sự đang hoạt động.";row.append(td);body.append(row); }
-  $("system-attendance-note").textContent = "Đã tải " + users.length + " nhân sự · " + dates.length + " ngày · " + records.length + " bản ghi.";
-  $("system-attendance-print-period").textContent = "Thời gian: " + from + " đến " + to + " · Chủ nhật: nghỉ hàng tuần";
-  emptyNode.hidden = users.length > 0;
-  tableWrap.hidden = users.length === 0;
-  printButtons.forEach(button => { button.disabled = users.length === 0; });
+    if (!users.length) {
+      const row = document.createElement("tr"), td = document.createElement("td");
+      td.colSpan = dates.length + 3;
+      td.textContent = "Không có nhân sự đang hoạt động.";
+      row.append(td);
+      body.append(row);
+    }
+    $("system-attendance-note").textContent = "Đã tải đủ " + users.length + " nhân sự · " + dates.length + " ngày · " + records.length + " bản ghi.";
+    $("system-attendance-print-period").textContent = "Thời gian: " + from + " đến " + to + " · Chủ nhật: nghỉ mặc định, chỉ tính ngoại lệ đã được Admin xác nhận";
+    emptyNode.hidden = users.length > 0;
+    tableWrap.hidden = users.length === 0;
+    printButtons.forEach(button => { button.disabled = users.length === 0; });
+    if (exportButton) exportButton.disabled = users.length === 0;
   } catch (error) {
+    state.systemAttendanceReport = null;
     errorNode.hidden = false;
-    errorNode.textContent = error?.code === "permission-denied" ? "Firebase từ chối quyền đọc dữ liệu. Hãy kiểm tra tài khoản Admin và Firestore Rules." : "Không tải được bảng công: " + (error?.message || "Lỗi không xác định");
-    $("system-attendance-note").textContent = "Tải bảng công thất bại.";
+    errorNode.textContent = error?.code === "permission-denied" ? "Firebase từ chối quyền đọc dữ liệu. Hãy kiểm tra tài khoản Admin và Firestore Rules." : "Không tải được bảng công đầy đủ: " + (error?.message || "Lỗi không xác định");
+    $("system-attendance-note").textContent = "Tải bảng công thất bại; chưa thể xuất hoặc in báo cáo.";
     emptyNode.hidden = false;
     emptyNode.querySelector("strong").textContent = "Không tải được dữ liệu";
     emptyNode.querySelector("span:last-child").textContent = "Kiểm tra thông báo lỗi phía trên rồi thử lại.";
@@ -288,6 +353,60 @@ async function loadSystemAttendance() {
     loadButton.disabled = false;
     loadButton.textContent = "Xem bảng công";
   }
+}
+function exportSystemAttendanceCsv() {
+  if (state.profile?.role !== "admin") {
+    toast("Chỉ Admin được xuất bảng công toàn hệ thống.");
+    return;
+  }
+  const report = state.systemAttendanceReport;
+  if (!report || $("export-system-attendance-csv").disabled) {
+    toast("Hãy tải đầy đủ bảng công trước khi xuất CSV.");
+    return;
+  }
+  const { users, records, from, to } = report;
+  const userById = new Map(users.map(user => [user.id, user]));
+  const byKey = new Map();
+  records.forEach(record => {
+    const key = String(record.uid) + "_" + String(record.date);
+    const prior = byKey.get(key);
+    if (!prior || (asDate(record.clockOutAt)?.getTime() || 0) > (asDate(prior.clockOutAt)?.getTime() || 0)) byKey.set(key, record);
+  });
+  const rows = [["Mã nhân viên", "Nhân viên", "Bộ phận", "Ngày", "Thứ", "Trạng thái", "Giờ vào", "Giờ ra", "Thời lượng", "Ngày công"]];
+  for (const user of users) {
+    for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) {
+      const record = byKey.get(user.id + "_" + day);
+      const start = asDate(record?.clockInAt), end = asDate(record?.clockOutAt);
+      const sunday = isSundayKey(day);
+      const sundayApproved = Boolean(sunday && record?.adminAdjusted && record?.adjustedBy && userById.get(record.adjustedBy)?.role === "admin" && start && end);
+      const complete = Boolean(start && end && (!sunday || sundayApproved));
+      const duration = start && end ? Math.max(0, Math.floor((end - start) / 60000)) : 0;
+      const status = sunday ? (sundayApproved ? "Chủ nhật đã được Admin xác nhận" : start || end ? "Chờ Admin xác nhận Chủ nhật" : "Nghỉ Chủ nhật") : complete ? "Đủ giờ vào/ra" : start || end ? "Chờ xác nhận thiếu giờ" : "Chưa chấm — cần xác nhận";
+      const weekday = new Intl.DateTimeFormat("vi-VN", { weekday: "long", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(day + "T12:00:00+07:00"));
+      rows.push([
+        user.id,
+        user.displayName || user.email || user.id,
+        user.department || departmentName(user.departmentId) || "Chưa phân bộ phận",
+        day,
+        weekday,
+        status,
+        fmtTime(start),
+        fmtTime(end),
+        start && end ? Math.floor(duration / 60) + " giờ " + String(duration % 60).padStart(2, "0") + " phút" : "",
+        complete ? "1" : "0"
+      ]);
+    }
+  }
+  const csvCell = value => { const cell = String(value ?? ""); const safe = /^[\u0000-\u0020]*[=+\-@]/.test(cell) ? "'" + cell : cell; return '"' + safe.replaceAll('"', '""') + '"' };
+  const csv = "\ufeff" + rows.map(row => row.map(csvCell).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "grova-bang-cong-toan-he-thong-" + from + "-den-" + to + ".csv";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function showView(name) {
@@ -436,12 +555,12 @@ async function reviewRequest(request, status) {
         const prior = existing.exists() ? existing.data() : null;
         const audit = { adjustmentRequestId: request.id, adjustmentNote: reviewNote.trim(), adjustedBy: state.user.uid, adjustedAt: serverTimestamp(), originalClockInAt: prior?.originalClockInAt || prior?.clockInAt || null, originalClockOutAt: prior?.originalClockOutAt || prior?.clockOutAt || null };
         if (prior) {
-          const changes = { ...audit };
+          const changes = { ...audit, adminAdjusted: state.profile?.role === "admin" };
           if (clockInAt) changes.clockInAt = clockInAt;
           if (clockOutAt) changes.clockOutAt = clockOutAt;
           transaction.update(recordRef, changes);
         } else {
-          transaction.set(recordRef, { uid: data.uid, date: data.date, siteId: "admin-adjustment", siteName: "Điều chỉnh bởi quản lý", clockInAt, clockOutAt, clockInLocation: null, clockOutLocation: null, createdAt: serverTimestamp(), adminAdjusted: true, ...audit });
+          transaction.set(recordRef, { uid: data.uid, date: data.date, siteId: "admin-adjustment", siteName: "Điều chỉnh bởi quản lý", clockInAt, clockOutAt, clockInLocation: null, clockOutLocation: null, createdAt: serverTimestamp(), adminAdjusted: state.profile?.role === "admin", ...audit });
         }
       }
       transaction.update(requestRef, { status, reviewedAt: serverTimestamp(), reviewedBy: state.user.uid, reviewNote: reviewNote.trim(), ...(status === "approved" ? { appliedRecordId: request.uid + "_" + request.date, appliedAt: serverTimestamp() } : {}) });
@@ -960,24 +1079,40 @@ function printSystemAttendance() {
   if (!report || $("print-system-attendance").disabled) { toast("Hãy lọc bảng chấm công trước khi in."); return; }
   const { users, records, from, to } = report;
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
-  const recordMap = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
+  const recordMap = new Map();
+  records.forEach(record => {
+    const key = String(record.uid) + "_" + String(record.date);
+    const prior = recordMap.get(key);
+    if (!prior || (asDate(record.clockOutAt)?.getTime() || 0) > (asDate(prior.clockOutAt)?.getTime() || 0)) recordMap.set(key, record);
+  });
+  const userById = new Map(users.map(user => [user.id, user]));
   const dates = [];
   for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
-  const fmtDate = key => key.slice(8,10) + "/" + key.slice(5,7) + "/" + key.slice(0,4);
-  const days = dates.map(day => ({ key: day, n: Number(day.slice(8,10)), sunday: isSundayKey(day) }));
+  const days = dates.map(day => ({ key: day, sunday: isSundayKey(day) }));
   const rows = users.map(user => {
     let worked = 0;
     const cells = days.map(day => {
       const record = recordMap.get(user.id + "_" + day.key);
       const start = asDate(record?.clockInAt);
       const end = asDate(record?.clockOutAt);
-      if (start && end) worked++;
-      if (day.sunday) return '<td class="sunday">N</td>';
-      if (start && end) return '<td class="done">' + fmtTime(start) + '<br><span>' + fmtTime(end) + '</span></td>';
-      if (start) return '<td class="open">' + fmtTime(start) + '<br><span>…</span></td>';
-      return '<td class="empty">—</td>';
+      const complete = Boolean(start && end);
+      const sundayApproved = Boolean(day.sunday && record?.adminAdjusted && record?.adjustedBy && userById.get(record.adjustedBy)?.role === "admin" && complete);
+      if (day.sunday) {
+        if (sundayApproved) {
+          worked++;
+          return '<td class="done">' + fmtTime(start) + '<br><span>' + fmtTime(end) + '</span></td>';
+        }
+        if (start || end) return '<td class="open">Chờ Admin</td>';
+        return '<td class="sunday">N</td>';
+      }
+      if (complete) {
+        worked++;
+        return '<td class="done">' + fmtTime(start) + '<br><span>' + fmtTime(end) + '</span></td>';
+      }
+      if (start || end) return '<td class="open">' + (start ? fmtTime(start) : "—") + '<br><span>' + (end ? fmtTime(end) : "…") + '</span></td>';
+      return '<td class="empty">Chờ xác nhận</td>';
     }).join("");
-    return '<tr><td class="employee">' + escapeHtml(user.displayName || user.email || user.id) + '<small>' + escapeHtml(user.email || "") + '</small></td><td class="department">' + escapeHtml(user.department || "Chưa phân bộ phận") + '</td>' + cells + '<td class="total">' + worked + '</td></tr>';
+    return '<tr><td class="employee">' + escapeHtml(user.displayName || user.email || user.id) + '<small>' + escapeHtml(user.email || "") + '</small></td><td class="department">' + escapeHtml(user.department || departmentName(user.departmentId) || "Chưa phân bộ phận") + '</td>' + cells + '<td class="total">' + worked + '</td></tr>';
   }).join("");
   const printWindow = window.open("", "_blank");
   if (!printWindow) { toast("Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại."); return; }
@@ -1102,20 +1237,23 @@ renderLeaveType();
   } catch (error) { showError(error); }
 });
 $("export-csv").addEventListener("click", () => {
-  const rows = [["Ngày", "Địa điểm", "Giờ vào", "Giờ ra", "Tổng giờ", "Trạng thái"], ...state.records.map((item) => {
+  const rows = [["Ngày", "Địa điểm", "Giờ vào", "Giờ ra", "Tổng giờ", "Trạng thái"], ...state.records.map(item => {
     const start = asDate(item.clockInAt);
     const end = asDate(item.clockOutAt);
     const mins = start && end ? Math.floor((end - start) / 60000) : 0;
-    return [item.date, item.siteName || "", fmtTime(start), fmtTime(end), end ? Math.floor(mins / 60) + "h " + String(mins % 60).padStart(2, "0") + "m" : "", end ? "Đủ công" : "Đang làm"];
+    return [item.date, item.siteName || "", fmtTime(start), fmtTime(end), end ? Math.floor(mins / 60) + "h " + String(mins % 60).padStart(2, "0") + "m" : "", end ? "Đủ công" : "Chờ xác nhận"];
   })];
-  const csv = "\ufeff" + rows.map((row) => row.map((value) => '"' + String(value ?? "").replaceAll('"', '""') + '"').join(",")).join("\r\n");
+  const csv = "\ufeff" + rows.map(row => row.map(value => '"' + String(value ?? "").replaceAll('"', '""') + '"').join(",")).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = "grova-attendance.csv";
+  link.download = "grova-attendance-ca-nhan.csv";
+  document.body.append(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
+$("export-system-attendance-csv").addEventListener("click", exportSystemAttendanceCsv);
 $("admin-attendance-date").addEventListener("change",()=>loadOverview().catch(showError));
 $("employee-search").addEventListener("input",renderAdminAttendance);
 $("employee-department-filter").addEventListener("change",renderAdminAttendance);
