@@ -7,6 +7,7 @@ on:
     paths:
       - "attendance.js"
       - "attendance.html"
+      - "attendance.css"
       - ".github/workflows/attendance-validation.yml"
       - "tests/attendance-report.test.mjs"
   workflow_dispatch:
