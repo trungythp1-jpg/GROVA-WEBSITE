@@ -234,25 +234,36 @@ async function loadSystemAttendance() {
   const to = $("system-attendance-to").value;
   if (!from || !to || from > to) { loadButton.disabled = false; loadButton.textContent = "Xem bảng công"; throw new Error("Vui lòng chọn khoảng ngày hợp lệ."); }
   try {
-    const periodKey = to.slice(0, 7);
-    const [usersSnap, recordsSnap, confirmationsSnap] = await Promise.all([
+    const selectedDate = new Date(to + "T00:00:00Z");
+    const selectedDay = selectedDate.getUTCDate();
+    const periodEndDate = new Date(Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth() + (selectedDay >= 25 ? 1 : 0), 24));
+    const periodStartDate = new Date(Date.UTC(periodEndDate.getUTCFullYear(), periodEndDate.getUTCMonth() - 1, 25));
+    const periodDateKey = date => date.toISOString().slice(0,10);
+    const confirmationPeriod = {
+      start: periodDateKey(periodStartDate),
+      end: periodDateKey(periodEndDate),
+      key: periodDateKey(periodEndDate).slice(0,7)
+    };
+    const [usersSnap, recordsSnap, periodRecordsSnap, confirmationsSnap] = await Promise.all([
       getDocs(query(collection(db, "attendance_users"), where("active", "==", true), limit(500))),
       getDocs(query(collection(db, "attendance_records"), where("date", ">=", from), where("date", "<=", to), limit(5000))),
-      getDocs(query(collection(db, "attendance_monthly_confirmations"), where("periodKey", "==", periodKey), limit(500)))
+      getDocs(query(collection(db, "attendance_records"), where("date", ">=", confirmationPeriod.start), where("date", "<=", confirmationPeriod.end), limit(5000))),
+      getDocs(query(collection(db, "attendance_monthly_confirmations"), where("periodKey", "==", confirmationPeriod.key), limit(500)))
     ]);
     const users = usersSnap.docs.map(item => ({ id: item.id, ...item.data() })).sort((a,b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
     const records = recordsSnap.docs.map(item => ({ id: item.id, ...item.data() }));
+    const periodRecords = periodRecordsSnap.docs.map(item => ({ id: item.id, ...item.data() }));
     const confirmations = new Map(confirmationsSnap.docs.map(item => [item.data().uid, item.data()]));
-    state.systemAttendanceReport = { users, records, confirmations: confirmationsSnap.docs.map(item => item.data()), from, to, periodKey };
+    state.systemAttendanceReport = { users, records, confirmations: confirmationsSnap.docs.map(item => item.data()), from, to, periodKey: confirmationPeriod.key, confirmationPeriod };
     const dates = [];
     for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
     const byKey = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
     const byUid = new Map();
-    records.forEach(record => { if (!byUid.has(record.uid)) byUid.set(record.uid, []); byUid.get(record.uid).push(record); });
+    periodRecords.forEach(record => { if (!byUid.has(record.uid)) byUid.set(record.uid, []); byUid.get(record.uid).push(record); });
     const head = $("system-attendance-head"), body = $("system-attendance-body");
     head.replaceChildren(); body.replaceChildren();
     const headRow = document.createElement("tr");
-    ["NHÂN VIÊN", "BỘ PHẬN", ...dates.map(day => isSundayKey(day) ? day.slice(8) + "/" + day.slice(5,7) + " CN" : day.slice(8) + "/" + day.slice(5,7)), "TỔNG NGÀY CÔNG", "XÁC NHẬN BẢNG CÔNG"].forEach(label => {
+    ["NHÂN VIÊN", "BỘ PHẬN", ...dates.map(day => isSundayKey(day) ? day.slice(8) + "/" + day.slice(5,7) + " CN" : day.slice(8) + "/" + day.slice(5,7)), "TỔNG NGÀY CÔNG", "XÁC NHẬN BẢNG CÔNG · KỲ " + confirmationPeriod.start.slice(8,10) + "/" + confirmationPeriod.start.slice(5,7) + "–" + confirmationPeriod.end.slice(8,10) + "/" + confirmationPeriod.end.slice(5,7)].forEach(label => {
       const th = document.createElement("th"); th.textContent = label; headRow.append(th);
     });
     head.append(headRow);
@@ -266,9 +277,9 @@ async function loadSystemAttendance() {
         if (isSundayKey(day)) { td.textContent = "Nghỉ"; td.className = "sunday-cell"; }
         else {
           const record = byKey.get(user.id + "_" + day);
-          const start = asDate(record?.clockInAt), finish = asDate(record?.clockOutAt);
-          if (start && finish) { td.textContent = fmtTime(start) + "–" + fmtTime(finish); worked += 1; td.className = "attendance-worked"; }
-          else if (start) { td.textContent = fmtTime(start) + "–…"; td.className = "attendance-open"; }
+          const startTime = asDate(record?.clockInAt), finishTime = asDate(record?.clockOutAt);
+          if (startTime && finishTime) { td.textContent = fmtTime(startTime) + "–" + fmtTime(finishTime); worked += 1; td.className = "attendance-worked"; }
+          else if (startTime) { td.textContent = fmtTime(startTime) + "–…"; td.className = "attendance-open"; }
           else { td.textContent = "—"; td.className = "attendance-missing"; }
         }
         row.append(td);
@@ -278,11 +289,8 @@ async function loadSystemAttendance() {
       let confirmationLabel = "Chưa xác nhận";
       let confirmationClass = "confirmation-pending";
       if (confirmation) {
-        const userRecords = byUid.get(user.id) || [];
-        const exactPeriod = from.slice(8,10) === "25" && to.slice(8,10) === "24";
-        const currentFingerprint = exactPeriod ? await fingerprintAttendance(userRecords) : null;
-        const mismatch = exactPeriod && currentFingerprint !== confirmation.attendanceFingerprint;
-        if (mismatch) { confirmationLabel = "Cần xác nhận lại"; confirmationClass = "confirmation-warning"; needsReview++; }
+        const currentFingerprint = await fingerprintAttendance(byUid.get(user.id) || [], confirmationPeriod);
+        if (currentFingerprint !== confirmation.attendanceFingerprint) { confirmationLabel = "Cần xác nhận lại"; confirmationClass = "confirmation-warning"; needsReview++; }
         else { confirmationLabel = confirmation.confirmationType === "admin_confirmed" ? "Admin xác nhận hộ" : "Đã xác nhận"; confirmationClass = "confirmation-good"; confirmed++; }
       } else pending++;
       const confirmationCell = document.createElement("td");
@@ -292,8 +300,8 @@ async function loadSystemAttendance() {
       body.append(row);
     }
     if (!users.length) { const row=document.createElement("tr"),td=document.createElement("td"); td.colSpan=dates.length+4;td.textContent="Không có nhân sự đang hoạt động.";row.append(td);body.append(row); }
-    $("system-attendance-note").textContent = "Đã tải " + users.length + " nhân sự · " + dates.length + " ngày · " + records.length + " bản ghi · Đã xác nhận: " + confirmed + " · Chưa xác nhận: " + pending + " · Cần xác nhận lại: " + needsReview + ".";
-    $("system-attendance-print-period").textContent = "Thời gian: " + from + " đến " + to + " · Kỳ xác nhận: " + periodKey + " · Chủ nhật: nghỉ hàng tuần";
+    $("system-attendance-note").textContent = "Khoảng bảng công: " + from + " – " + to + ". Trạng thái xác nhận được đối chiếu riêng theo kỳ " + confirmationPeriod.start + " – " + confirmationPeriod.end + ". Đã xác nhận: " + confirmed + " · Chưa xác nhận: " + pending + " · Cần xác nhận lại: " + needsReview + ".";
+    $("system-attendance-print-period").textContent = "Khoảng bảng công: " + from + " đến " + to + " · Kỳ xác nhận độc lập: " + confirmationPeriod.start + " đến " + confirmationPeriod.end + " · Chủ nhật: nghỉ hàng tuần";
     emptyNode.hidden = users.length > 0;
     tableWrap.hidden = users.length === 0;
     printButtons.forEach(button => { button.disabled = users.length === 0; });
@@ -398,8 +406,8 @@ function confirmationPeriodRecords(records, period) {
 function countConfirmedWorkDays(records) {
   return records.filter(item => asDate(item.clockInAt) && asDate(item.clockOutAt)).length;
 }
-async function fingerprintAttendance(records) {
-  const payload = confirmationPeriodRecords(records, getConfirmationPeriod()).map(item => ({
+async function fingerprintAttendance(records, period = getConfirmationPeriod()) {
+  const payload = confirmationPeriodRecords(records, period).map(item => ({
     id: item.id,
     date: item.date || "",
     clockInAt: asDate(item.clockInAt)?.getTime() || null,
