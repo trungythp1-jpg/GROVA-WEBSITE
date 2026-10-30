@@ -1151,55 +1151,37 @@ $("monthly-confirmation-submit").addEventListener("click",async()=>{
   catch(error){showError(error);button.disabled=false;}
 });
 $("monthly-confirmation-admin-refresh").addEventListener("click",()=>Promise.all([loadAdminMonthlyConfirmations(),loadSystemAttendance()]).catch(showError));
-const attendanceYearSelect = $("system-attendance-year");
-const currentAttendanceYear = Number(todayKey().slice(0,4));
-for (let year = currentAttendanceYear - 3; year <= currentAttendanceYear + 1; year++) {
-  const option = document.createElement("option");
-  option.value = String(year);
-  option.textContent = String(year);
-  attendanceYearSelect.append(option);
-}
-attendanceYearSelect.value = String(currentAttendanceYear);
+const attendanceYearSelect=$("system-attendance-year");
+const attendanceMonthSelect=$("system-attendance-month");
+const currentAttendanceYear=Number(todayKey().slice(0,4));
+for(let year=currentAttendanceYear-3;year<=currentAttendanceYear+1;year++){const option=document.createElement("option");option.value=String(year);option.textContent=String(year);attendanceYearSelect.append(option);}
+for(let month=1;month<=12;month++){const option=document.createElement("option");option.value=String(month);option.textContent="Tháng "+String(month).padStart(2,"0");attendanceMonthSelect.append(option);}
+attendanceYearSelect.value=String(currentAttendanceYear);
+attendanceMonthSelect.value=String(Number(todayKey().slice(5,7)));
 $("load-system-attendance").addEventListener("click", () => loadSystemAttendance().catch(showError));
 function printSystemAttendance() {
-  if (state.profile?.role !== "admin") { toast("Chỉ Admin được in bảng chấm công toàn hệ thống."); return; }
-  const report = state.systemAttendanceReport;
-  if (!report || $("print-system-attendance").disabled) { toast("Hãy tải bảng chấm công thành công trước khi in."); return; }
-  const { users, records, confirmationStatuses, periods, year } = report;
-  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
-  const recordMap = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
-  const fmtDate = key => key.slice(8,10) + "/" + key.slice(5,7) + "/" + key.slice(0,4);
-  const logo = new URL("assets/grova_logo.png", document.baseURI).href;
-  const dayNames = ["CN","T2","T3","T4","T5","T6","T7"];
-  const pages = periods.map((period,index) => {
-    const monthStart = year + "-" + String(index+1).padStart(2,"0") + "-01";
-    const monthEnd = dateKeyAddDays(index===11 ? year+"-12-31" : year+"-"+String(index+2).padStart(2,"0")+"-01",-1);
-    const dates=[];
-    for(let day=monthStart;day<=monthEnd;day=dateKeyAddDays(day,1))dates.push(day);
-    const headers=dates.map(day=>"<th><span>"+day.slice(8,10)+"</span><small>"+dayNames[new Date(day+"T12:00:00+07:00").getDay()]+"</small></th>").join("");
-    const rows=users.map(user=>{
-      const cells=dates.map(day=>{
-        const record=recordMap.get(user.id+"_"+day);
-        const start=asDate(record?.clockInAt),end=asDate(record?.clockOutAt);
-        if(isSundayKey(day))return "<td class='off'>N</td>";
-        if(start&&end)return "<td class='done'>✓</td>";
-        if(start)return "<td class='open'>•</td>";
-        return "<td class='missing'>—</td>";
-      }).join("");
-      const total=dates.reduce((count,day)=>{
-        const record=recordMap.get(user.id+"_"+day);
-        return count+(asDate(record?.clockInAt)&&asDate(record?.clockOutAt)?1:0);
-      },0);
-      const status=confirmationStatuses[index].get(user.id)||"Chưa xác nhận";
-      const statusClass=status==="Chưa xác nhận"?"pending":status==="Cần xác nhận lại"?"warning":"good";
-      return "<tr><td class='name'>"+escapeHtml(user.displayName||user.email||user.id)+"</td><td class='dept'>"+escapeHtml(user.department||"—")+"</td>"+cells+"<td class='total'>"+total+"</td><td class='status "+statusClass+"'>"+status+"</td></tr>";
-    }).join("");
-    return "<section class='page"+(index?" page-break":"")+"'><header class='header'><img class='logo' src='"+logo+"' alt='GROVA'><div><h1>GROVA HOLDINGS</h1><p>GROVA ELEVATOR · ELEVATOR INTERIORS · LAW · EDUCATION</p></div></header><h2>BẢNG CHẤM CÔNG TOÀN HỆ THỐNG · THÁNG "+String(index+1).padStart(2,"0")+"/"+year+"</h2><div class='period'>Bảng công tháng: "+fmtDate(monthStart)+" – "+fmtDate(monthEnd)+" · Kỳ xác nhận: "+fmtDate(period.start)+" – "+fmtDate(period.end)+"</div><div class='meta'><span>Nhân sự: <b>"+users.length+"</b></span><span>Ngày trong tháng: <b>"+dates.length+"</b></span><span>Kỳ xác nhận: <b>"+period.label+"</b></span></div><table><thead><tr><th class='name'>NHÂN VIÊN</th><th class='dept'>BỘ PHẬN</th>"+headers+"<th class='total'>CÔNG</th><th class='status'>XÁC NHẬN</th></tr></thead><tbody>"+rows+"</tbody></table><div class='legend'><b>Chú thích:</b> ✓ = Đủ công · • = Có giờ vào, chưa có giờ ra · N = Chủ nhật · — = Chưa chấm công.</div><footer>GROVA HOLDINGS · Bảng chấm công nội bộ <span>"+fmtDate(todayKey())+"</span></footer></section>";
-  });
+  if(state.profile?.role!=="admin"){toast("Chỉ Admin được in bảng chấm công toàn hệ thống.");return;}
+  const report=state.systemAttendanceReport;
+  if(!report||$("print-system-attendance").disabled){toast("Hãy tải bảng công tháng thành công trước khi in.");return;}
+  const {users,records,statuses,period,from,to,year,month}=report;
+  const escapeHtml=value=>String(value??"").replace(/[&<>"']/g,character=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[character]));
+  const recordMap=new Map(records.map(record=>[String(record.uid)+"_"+String(record.date),record]));
+  const dates=[];for(let day=from;day<=to;day=dateKeyAddDays(day,1))dates.push(day);
+  const fmtDate=key=>key.slice(8,10)+"/"+key.slice(5,7)+"/"+key.slice(0,4);
+  const logo=new URL("assets/grova_logo.png",document.baseURI).href;
+  const dayNames=["CN","T2","T3","T4","T5","T6","T7"];
+  const headers=dates.map(day=>"<th><span>"+day.slice(8,10)+"</span><small>"+dayNames[new Date(day+"T12:00:00+07:00").getDay()]+"</small></th>").join("");
+  const rows=users.map(user=>{
+    const cells=dates.map(day=>{const record=recordMap.get(user.id+"_"+day),start=asDate(record?.clockInAt),end=asDate(record?.clockOutAt);if(isSundayKey(day))return "<td class='off'>N</td>";if(start&&end)return "<td class='done'>✓</td>";if(start)return "<td class='open'>•</td>";return "<td class='missing'>—</td>";}).join("");
+    const total=dates.reduce((count,day)=>{const record=recordMap.get(user.id+"_"+day);return count+(asDate(record?.clockInAt)&&asDate(record?.clockOutAt)?1:0);},0);
+    const status=statuses.get(user.id)||"Chưa xác nhận";
+    const statusClass=status==="Chưa xác nhận"?"pending":status==="Cần xác nhận lại"?"warning":"good";
+    return "<tr><td class='name'>"+escapeHtml(user.displayName||user.email||user.id)+"</td><td class='dept'>"+escapeHtml(user.department||"—")+"</td>"+cells+"<td class='total'>"+total+"</td><td class='status "+statusClass+"'>"+escapeHtml(status)+"</td></tr>";
+  }).join("");
   const printWindow=window.open("","_blank");
   if(!printWindow){toast("Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại.");return;}
   printWindow.onload=()=>{printWindow.focus();printWindow.print();};
-  const html="<!doctype html><html lang='vi'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Bảng chấm công "+year+" — GROVA HOLDINGS</title><style>@page{size:A3 landscape;margin:8mm}*{box-sizing:border-box}html,body{margin:0;padding:0;color:#173d2f;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{position:relative;padding:0}.page-break{break-before:page;page-break-before:always}.header{display:flex;align-items:center;gap:12px;border-bottom:2px solid #0a5285;padding-bottom:6px}.logo{width:76px;height:auto;object-fit:contain}.header h1{font-size:16px;letter-spacing:1px;color:#07518b;margin:0 0 3px}.header p{font-size:8px;color:#627469;margin:0}h2{text-align:center;font-size:14px;margin:10px 0 4px}.period{text-align:center;font-size:9px;margin-bottom:8px}.meta{display:flex;justify-content:space-between;border-top:1px solid #d6e1d8;border-bottom:1px solid #d6e1d8;padding:5px 0;margin-bottom:8px;font-size:9px}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8px}th,td{border:1px solid #cbd8ce;text-align:center;vertical-align:middle;padding:3px 0;height:25px}th{background:#07518b;color:#fff;font-size:7px}th small{display:block;font-size:6px;font-weight:400;margin-top:2px}th.name,td.name{width:18%;text-align:left;padding-left:5px}th.dept,td.dept{width:10%;text-align:left;padding-left:4px}th.total,td.total{width:5%;font-weight:bold}th.status,td.status{width:12%;font-size:7px}td.name{font-weight:bold;font-size:8px}td.dept{font-size:7px}tbody tr:nth-child(even){background:#f3f7f5}.done{color:#176a45;font-weight:bold}.off{background:#e8f0f7;color:#07518b;font-weight:bold}.open{color:#996b16;font-weight:bold}.missing{color:#9aa69e}.status.good{color:#176a45;font-weight:bold}.status.pending{color:#946d2f;font-weight:bold}.status.warning{color:#a34d36;font-weight:bold}.legend{font-size:7px;color:#5b6e61;margin-top:8px}.legend b{color:#173d2f}footer{margin-top:8px;border-top:1px solid #d6e1d8;padding-top:5px;display:flex;justify-content:space-between;font-size:7px;color:#68786e}@media screen{body{padding:12px;background:#eef2ef}.page{background:white;padding:12px;max-width:1200px;margin:0 auto 16px;box-shadow:0 1px 8px #0002}.page-break{break-before:auto}}@media print{.page{height:auto;min-height:0;break-inside:avoid;page-break-inside:avoid}}</style></head><body>"+pages.join("")+"</body></html>";
+  const html="<!doctype html><html lang='vi'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Bảng chấm công tháng "+String(month).padStart(2,"0")+"/"+year+" — GROVA</title><style>@page{size:A3 landscape;margin:8mm}*{box-sizing:border-box}html,body{margin:0;padding:0;color:#173d2f;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{padding:0}.header{display:flex;align-items:center;gap:12px;border-bottom:2px solid #0a5285;padding-bottom:6px}.logo{width:76px;height:auto}.header h1{font-size:16px;color:#07518b;margin:0 0 3px}.header p{font-size:8px;color:#627469;margin:0}h2{text-align:center;font-size:14px;margin:10px 0 4px}.period{text-align:center;font-size:9px;margin-bottom:8px}.meta{display:flex;justify-content:space-between;border-block:1px solid #d6e1d8;padding:5px 0;margin-bottom:8px;font-size:9px}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8px}th,td{border:1px solid #cbd8ce;text-align:center;vertical-align:middle;padding:3px 0;height:25px}th{background:#07518b;color:#fff;font-size:7px}th small{display:block;font-size:6px;font-weight:400;margin-top:2px}th.name,td.name{width:18%;text-align:left;padding-left:5px}th.dept,td.dept{width:10%;text-align:left;padding-left:4px}th.total,td.total{width:5%;font-weight:bold}th.status,td.status{width:12%;font-size:7px}td.name{font-weight:bold}td.dept{font-size:7px}tbody tr:nth-child(even){background:#f3f7f5}.done{color:#176a45;font-weight:bold}.off{background:#e8f0f7;color:#07518b;font-weight:bold}.open{color:#996b16;font-weight:bold}.missing{color:#9aa69e}.status.good{color:#176a45;font-weight:bold}.status.pending{color:#946d2f;font-weight:bold}.status.warning{color:#a34d36;font-weight:bold}.legend{font-size:7px;color:#5b6e61;margin-top:8px}footer{margin-top:8px;border-top:1px solid #d6e1d8;padding-top:5px;display:flex;justify-content:space-between;font-size:7px;color:#68786e}</style></head><body><section class='page'><header class='header'><img class='logo' src='"+logo+"' alt='GROVA'><div><h1>GROVA HOLDINGS</h1><p>GROVA ELEVATOR · ELEVATOR INTERIORS · LAW · EDUCATION</p></div></header><h2>BẢNG CHẤM CÔNG TOÀN HỆ THỐNG · THÁNG "+String(month).padStart(2,"0")+"/"+year+"</h2><div class='period'>Bảng công tháng: "+fmtDate(from)+" – "+fmtDate(to)+" · Kỳ xác nhận: "+fmtDate(period.start)+" – "+fmtDate(period.end)+"</div><div class='meta'><span>Nhân sự: <b>"+users.length+"</b></span><span>Tháng: <b>"+String(month).padStart(2,"0")+"/"+year+"</b></span><span>Kỳ xác nhận: <b>"+period.label+"</b></span></div><table><thead><tr><th class='name'>NHÂN VIÊN</th><th class='dept'>BỘ PHẬN</th>"+headers+"<th class='total'>CÔNG</th><th class='status'>XÁC NHẬN</th></tr></thead><tbody>"+rows+"</tbody></table><div class='legend'><b>Chú thích:</b> ✓ = Đủ công · • = Có giờ vào, chưa có giờ ra · N = Chủ nhật · — = Chưa chấm công.</div><footer>GROVA HOLDINGS · Bảng chấm công nội bộ <span>"+fmtDate(todayKey())+"</span></footer></section></body></html>";
   printWindow.document.open();printWindow.document.write(html);printWindow.document.close();
 }
 $("print-system-attendance").addEventListener("click", printSystemAttendance);
