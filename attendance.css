@@ -315,3 +315,7 @@
 .system-attendance-filters label{max-width:260px}
 @media(max-width:760px){.system-attendance-filters{grid-template-columns:1fr}.system-attendance-filters label{max-width:none}}
 .system-attendance-table .confirmation-good,.system-attendance-table .confirmation-pending,.system-attendance-table .confirmation-warning{min-width:105px;white-space:nowrap}
+
+.system-attendance-filters{grid-template-columns:minmax(150px,220px) minmax(150px,220px) auto;align-items:end;justify-content:start}
+.system-attendance-filters label{max-width:220px}
+@media(max-width:760px){.system-attendance-filters{grid-template-columns:1fr}.system-attendance-filters label{max-width:none}}
