@@ -105,3 +105,37 @@ body .sub-hero .sub-lead{font-size:13px}
 .sub-process>div:nth-child(3),.sub-process>div:nth-child(4){border-bottom:0}
 }
 @media(prefers-reduced-motion:reduce){.sub-card,.sub-header a{transition:none!important}}
+
+.sub-hero{position:relative;isolation:isolate;overflow:hidden;background:#062c4c}
+.sub-hero:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(4,31,52,.96) 0%,rgba(4,31,52,.82) 48%,rgba(4,31,52,.24) 100%)}
+.sub-hero .sub-wrap{position:relative;z-index:2}
+.sub-hero h1,.sub-hero .sub-lead,.sub-hero .sub-kicker{color:#fff}
+.sub-hero h1 em{color:#a5e77b}
+.sub-hero-photo{position:absolute;inset:0;z-index:-2}
+.sub-hero-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.sub-hero-note{font-size:10px;color:#d8e7ee;margin-top:18px;letter-spacing:.04em}
+.sub-header>a img{width:auto;max-width:220px;height:54px;object-fit:contain}
+.sub-footer .sub-wrap{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.sub-footer-brand{display:flex;align-items:center;gap:18px}
+.sub-footer-brand img{width:auto;height:42px;max-width:170px;object-fit:contain}
+.sub-image-feature{margin:32px 0 0;position:relative;height:clamp(220px,32vw,390px);overflow:hidden;border-radius:4px;background:#e8eef1}
+.sub-image-feature img{width:100%;height:100%;object-fit:cover;display:block}
+.sub-image-feature figcaption{position:absolute;right:14px;bottom:12px;padding:7px 10px;color:#fff;background:#062c4cbd;font-size:10px}
+.image-grid .sub-card{padding:0;overflow:hidden}
+.image-grid .sub-card img{width:100%;height:190px;object-fit:cover;display:block}
+.image-grid .sub-card div{padding:22px}
+@media(max-width:680px){.sub-footer .sub-wrap{align-items:flex-start;flex-direction:column}.sub-image-feature{height:230px}.sub-header>a img{height:44px}}
+
+.division-elevator .sub-hero-photo img{object-position:center 52%}
+.division-interiors .sub-hero-photo img{object-position:center 50%}
+.division-law .sub-hero-photo img{object-position:center 48%}
+.division-education .sub-hero-photo img{object-position:center 55%}
+
+body .sub-hero{background:#062c4c!important}
+body .sub-hero:before{content:""!important;display:block!important;position:absolute!important;inset:0!important;z-index:-1!important;background:linear-gradient(90deg,rgba(4,31,52,.94) 0%,rgba(4,31,52,.78) 48%,rgba(4,31,52,.22) 100%)!important}
+body .sub-hero .sub-hero-photo{position:absolute!important;inset:0!important;z-index:-2!important;display:block!important}
+body .sub-hero .sub-hero-photo img{width:100%!important;height:100%!important;object-fit:cover!important}
+body .sub-hero h1{color:#fff!important}
+body .sub-hero h1 em{color:#a5e77b!important;-webkit-text-fill-color:#a5e77b!important}
+body .sub-hero .sub-kicker,body .sub-hero .sub-lead{color:#f2f7fa!important}
+body .sub-hero .sub-hero-note{position:relative;z-index:2;color:#d8e7ee!important}

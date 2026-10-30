@@ -405,3 +405,39 @@ button{font:inherit}
 .site-home #menu span{display:block;width:18px;height:2px;background:#062c4c}
 }
 .site-home #menu:focus-visible{outline:3px solid #75c900;outline-offset:3px}
+
+.hero-photo{position:absolute;z-index:1;right:max(3.5vw,calc((100vw - 1440px)/2));top:50%;transform:translateY(-50%);width:min(54vw,760px);height:min(68vh,610px);min-height:390px;border-radius:5px;overflow:hidden;box-shadow:0 34px 90px rgba(4,32,52,.28);border:1px solid rgba(255,255,255,.28)}
+.hero-photo:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,26,43,.15),transparent 42%),linear-gradient(0deg,rgba(4,26,43,.16),transparent 48%)}
+.hero-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.premium-hero{isolation:isolate;background:linear-gradient(105deg,#062c4c 0%,#073e68 45%,#0a3a57 100%)}
+.premium-hero:before{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(90deg,rgba(4,29,49,.96) 0%,rgba(4,39,65,.88) 38%,rgba(4,39,65,.15) 75%,rgba(4,39,65,.08) 100%)}
+.premium-hero-layout{position:relative;z-index:2}
+.premium-hero-copy{position:relative;z-index:3;max-width:600px}
+.premium-hero h1,.premium-hero .premium-hero-lead{color:#fff}
+.premium-hero h1 em{color:#a5e77b}
+.premium-hero .premium-kicker{color:#b9d9e8}
+.premium-hero .premium-text-link{color:#fff}
+.premium-hero .hero-index{color:#d4e4ec}
+.premium-hero .hero-index i{background:#80cf55}
+.hero-visual{display:none!important}
+.hero-bottom-line{position:relative;z-index:3;color:#d2e4ed}
+.about-photo{margin:54px 0 0;position:relative;overflow:hidden;border-radius:4px;height:clamp(230px,34vw,440px);background:#e7eef1}
+.about-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.about-photo figcaption,.contact-photo figcaption{position:absolute;right:16px;bottom:14px;padding:7px 11px;background:rgba(5,35,57,.72);color:#fff;font-size:10px;letter-spacing:.04em;border-radius:2px}
+.ecosystem-card .division-visual{position:relative;overflow:hidden;background-size:cover;background-position:center;min-height:250px}
+.ecosystem-card .division-visual:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(4,25,42,.04),rgba(4,25,42,.34))}
+.card-elevator .division-visual{background-image:url("assets/images/elevator-main.png")}
+.card-interiors .division-visual{background-image:url("assets/images/elevator-interiors.png")}
+.card-law .division-visual{background-image:url("assets/images/grova-law.png")}
+.card-education .division-visual{background-image:url("assets/images/grova-education.png")}
+.ecosystem-card .division-visual>*{display:none!important}
+.approach-art{overflow:hidden;position:relative}
+.approach-art .approach-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.94}
+.approach-art:after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(5,35,57,.15),rgba(5,35,57,.42))}
+.approach-art>*:not(.approach-photo){display:none!important}
+.contact-photo{position:relative;margin:28px 0 24px;height:220px;overflow:hidden;border-radius:4px}
+.contact-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.site-brand img{max-height:54px;width:auto;max-width:230px;object-fit:contain}
+.premium-footer .footer-brand img{width:auto;max-width:220px;height:58px;object-fit:contain}
+@media(max-width:900px){.hero-photo{right:24px;width:52vw;height:48vh;min-height:300px}.premium-hero-copy{max-width:52%}}
+@media(max-width:680px){.hero-photo{position:relative;top:auto;right:auto;transform:none;width:100%;height:245px;min-height:0;margin:30px 0 0}.premium-hero-layout{display:flex;flex-direction:column}.premium-hero-copy{max-width:100%}.about-photo{margin-top:34px;height:230px}.ecosystem-card .division-visual{min-height:205px}.contact-photo{height:190px}}
