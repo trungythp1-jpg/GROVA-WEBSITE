@@ -304,10 +304,10 @@ function showView(name) {
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === name));
   const labels = { today: "TRANG CHỦ", tasks: "CÔNG VIỆC CỦA TÔI", history: "LỊCH SỬ CÔNG", requests: "YÊU CẦU ĐIỀU CHỈNH", overview: "TỔNG QUAN", sites: "ĐỊA ĐIỂM CHẤM CÔNG", employees: "QUẢN LÝ NHÂN VIÊN" };
   $("page-heading").textContent = labels[name] || "CHẤM CÔNG";
-  if (name === "history") renderHistory();
+  if (name === "history") { renderHistory(); loadOwnMonthlyConfirmation().catch(showError); }
   if (name === "requests") loadRequests().catch(showError);
   if (name === "sites") loadSites().catch(showError);
-  if (name === "overview") { loadOverview().catch(showError); if (state.profile?.role === "admin") { const now=todayKey(); const first=now.slice(0,8)+"01"; $("system-attendance-from").value ||= first; $("system-attendance-to").value ||= now; loadSystemAttendance().catch(() => {}); } }
+  if (name === "overview") { loadOverview().catch(showError); if (state.profile?.role === "admin") { const now=todayKey(); const first=now.slice(0,8)+"01"; $("system-attendance-from").value ||= first; $("system-attendance-to").value ||= now; loadSystemAttendance().catch(() => {}); loadAdminMonthlyConfirmations().catch(showError); } }
   if (name === "employees") loadEmployees().catch(showError);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -357,6 +357,154 @@ function renderHistory() {
     rows.append(row);
   });
 }
+
+function getConfirmationPeriod() {
+  const today = todayKey();
+  const year = Number(today.slice(0,4));
+  const month = Number(today.slice(5,7));
+  const day = Number(today.slice(8,10));
+  const endBase = new Date(Date.UTC(year, month - (day >= 25 ? 0 : 1), 1));
+  const endYear = endBase.getUTCFullYear();
+  const endMonth = endBase.getUTCMonth() + 1;
+  const startBase = new Date(Date.UTC(endYear, endMonth - 2, 25));
+  const endKey = String(endYear).padStart(4,"0") + "-" + String(endMonth).padStart(2,"0") + "-24";
+  const startKey = String(startBase.getUTCFullYear()).padStart(4,"0") + "-" + String(startBase.getUTCMonth()+1).padStart(2,"0") + "-25";
+  return { start: startKey, end: endKey, key: endKey.slice(0,7), deadline: endKey.slice(0,7) + "-28" };
+}
+function confirmationPeriodRecords(records, period) {
+  return records.filter(item => item.date >= period.start && item.date <= period.end).sort((a,b) => String(a.date).localeCompare(String(b.date)));
+}
+function countConfirmedWorkDays(records) {
+  return records.filter(item => asDate(item.clockInAt) && asDate(item.clockOutAt)).length;
+}
+async function fingerprintAttendance(records) {
+  const payload = confirmationPeriodRecords(records, getConfirmationPeriod()).map(item => ({
+    id: item.id,
+    date: item.date || "",
+    clockInAt: asDate(item.clockInAt)?.getTime() || null,
+    clockOutAt: asDate(item.clockOutAt)?.getTime() || null,
+    clockInSiteId: item.siteId || "",
+    clockOutSiteId: item.clockOutSiteId || "",
+    adjustedBy: item.adjustedBy || "",
+    adjustmentRequestId: item.adjustmentRequestId || ""
+  }));
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2,"0")).join("");
+}
+function formatPeriodDate(value) {
+  return value.slice(8,10) + "/" + value.slice(5,7) + "/" + value.slice(0,4);
+}
+async function loadOwnMonthlyConfirmation() {
+  const period = getConfirmationPeriod();
+  const ref = doc(db,"attendance_monthly_confirmations",period.key + "_" + state.user.uid);
+  const [snapshot, recordsSnap] = await Promise.all([
+    getDoc(ref),
+    getDocs(query(collection(db,"attendance_records"),where("uid","==",state.user.uid),limit(500)))
+  ]);
+  const records = recordsSnap.docs.map(item => ({id:item.id,...item.data()}));
+  const periodRecords = confirmationPeriodRecords(records,period);
+  const total = countConfirmedWorkDays(periodRecords);
+  const fingerprint = await fingerprintAttendance(records);
+  const existing = snapshot.exists() ? snapshot.data() : null;
+  const changed = Boolean(existing && existing.attendanceFingerprint !== fingerprint);
+  $("monthly-confirmation-period").textContent = formatPeriodDate(period.start) + " – " + formatPeriodDate(period.end);
+  $("monthly-confirmation-total").textContent = total + " ngày";
+  const status = $("monthly-confirmation-status");
+  const button = $("monthly-confirmation-submit");
+  const note = $("monthly-confirmation-note");
+  if (!existing) {
+    status.textContent = "Chưa xác nhận";
+    status.className = "table-status";
+    note.textContent = "Vui lòng kiểm tra bảng công trước khi xác nhận.";
+    button.textContent = "TÔI XÁC NHẬN BẢNG CÔNG";
+    button.disabled = false;
+  } else if (changed) {
+    status.textContent = "Cần xác nhận lại";
+    status.className = "table-status warning";
+    note.textContent = "Dữ liệu chấm công đã thay đổi sau lần xác nhận gần nhất. Vui lòng kiểm tra và xác nhận lại.";
+    button.textContent = "XÁC NHẬN LẠI BẢNG CÔNG";
+    button.disabled = false;
+  } else {
+    status.textContent = existing.confirmationType === "admin_confirmed" ? "Admin đã xác nhận hộ" : "Đã xác nhận";
+    status.className = "table-status good";
+    const signedAt = asDate(existing.confirmedAt);
+    note.textContent = "Đã xác nhận lúc " + (signedAt ? fmtDate(signedAt) + " " + fmtTime(signedAt) : "đang cập nhật") + (existing.confirmationType === "admin_confirmed" ? " bởi Admin." : " bởi tài khoản của bạn.");
+    button.disabled = true;
+    button.textContent = "ĐÃ XÁC NHẬN";
+  }
+  button.dataset.periodKey = period.key;
+  button.dataset.fingerprint = fingerprint;
+  button.dataset.total = String(total);
+}
+async function submitMonthlyConfirmation(uid = state.user.uid, adminMode = false) {
+  const period = getConfirmationPeriod();
+  const recordsSnap = await getDocs(query(collection(db,"attendance_records"),where("uid","==",uid),limit(500)));
+  const records = recordsSnap.docs.map(item => ({id:item.id,...item.data()}));
+  const periodRecords = confirmationPeriodRecords(records,period);
+  const fingerprint = await fingerprintAttendance(records);
+  const total = countConfirmedWorkDays(periodRecords);
+  const ref = doc(db,"attendance_monthly_confirmations",period.key + "_" + uid);
+  const existing = await getDoc(ref);
+  const revision = existing.exists() ? Number(existing.data().revision || 1) + 1 : 1;
+  const data = {
+    uid,
+    periodKey: period.key,
+    periodStart: period.start,
+    periodEnd: period.end,
+    totalWorkDays: total,
+    attendanceFingerprint: fingerprint,
+    confirmedByUid: state.user.uid,
+    confirmationType: adminMode ? "admin_confirmed" : "self",
+    confirmedAt: serverTimestamp(),
+    revision
+  };
+  if (existing.exists()) await setDoc(ref,data);
+  else await setDoc(ref,{...data,createdAt:serverTimestamp()});
+  return data;
+}
+async function loadAdminMonthlyConfirmations() {
+  if (state.profile?.role !== "admin") return;
+  const period = getConfirmationPeriod();
+  const [usersSnap, confirmationsSnap, recordsSnap] = await Promise.all([
+    getDocs(query(collection(db,"attendance_users"),where("active","==",true),limit(500))),
+    getDocs(query(collection(db,"attendance_monthly_confirmations"),where("periodKey","==",period.key),limit(500))),
+    getDocs(query(collection(db,"attendance_records"),where("date",">=",period.start),where("date","<=",period.end),limit(5000)))
+  ]);
+  const users = usersSnap.docs.map(item=>({id:item.id,...item.data()}));
+  const confirmations = new Map(confirmationsSnap.docs.map(item=>[item.data().uid,item.data()]));
+  const records = recordsSnap.docs.map(item=>({id:item.id,...item.data()}));
+  const byUid = new Map();
+  records.forEach(item=>{if(!byUid.has(item.uid))byUid.set(item.uid,[]);byUid.get(item.uid).push(item);});
+  const body = $("monthly-confirmation-admin-rows");
+  body.replaceChildren();
+  let signed=0, unsigned=0, changed=0;
+  users.sort((a,b)=>String(a.displayName||"").localeCompare(String(b.displayName||""),"vi")).forEach(user=>{
+    const confirmation=confirmations.get(user.id);
+    const userRecords=byUid.get(user.id)||[];
+    const total=countConfirmedWorkDays(userRecords);
+    const status=confirmation ? (confirmation.totalWorkDays !== total ? "Cần kiểm tra" : confirmation.confirmationType==="admin_confirmed" ? "Admin xác nhận hộ" : "Đã xác nhận") : "Chưa xác nhận";
+    if(!confirmation) unsigned++; else if(status==="Cần kiểm tra") changed++; else signed++;
+    const row=document.createElement("tr");
+    const values=[user.displayName||user.email||user.id,user.department||"—",total+" ngày",status,confirmation?.confirmedByUid||"—"];
+    values.forEach(value=>{const cell=document.createElement("td");cell.textContent=value;row.append(cell);});
+    const actionCell=document.createElement("td");
+    const action=document.createElement("button");
+    action.type="button";
+    action.className="outline-button";
+    action.textContent=confirmation ? "Xác nhận lại" : "Xác nhận hộ";
+    action.addEventListener("click",async()=>{
+      if(state.profile?.role!=="admin")return;
+      action.disabled=true;
+      try{await submitMonthlyConfirmation(user.id,true);await loadAdminMonthlyConfirmations();toast("Đã xác nhận bảng công cho "+(user.displayName||"nhân viên")+".");}
+      catch(error){showError(error);action.disabled=false;}
+    });
+    actionCell.append(action);row.append(actionCell);body.append(row);
+  });
+  $("monthly-confirmation-admin-period").textContent=formatPeriodDate(period.start)+" – "+formatPeriodDate(period.end)+" · Hạn xác nhận: "+formatPeriodDate(period.deadline);
+  $("monthly-confirmation-admin-summary").textContent="Đã xác nhận: "+signed+" · Chưa xác nhận: "+unsigned+" · Cần kiểm tra: "+changed;
+}
+
 async function loadRequests() {
   const manager = ["admin", "manager"].includes(state.profile?.role);
   const q = manager
@@ -953,6 +1101,14 @@ $("locate").addEventListener("click", getLocation);
 document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
 document.querySelectorAll("[data-go]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.go)));
 $("filter-history").addEventListener("click", renderHistory);
+$("monthly-confirmation-submit").addEventListener("click",async()=>{
+  const button=$("monthly-confirmation-submit");
+  if(!state.user||button.disabled)return;
+  button.disabled=true;
+  try{await submitMonthlyConfirmation(state.user.uid,false);await loadOwnMonthlyConfirmation();toast("Đã ghi nhận xác nhận bảng công của bạn.");}
+  catch(error){showError(error);button.disabled=false;}
+});
+$("monthly-confirmation-admin-refresh").addEventListener("click",()=>loadAdminMonthlyConfirmations().catch(showError));
 $("load-system-attendance").addEventListener("click", () => loadSystemAttendance().catch(showError));
 function printSystemAttendance() {
   if (state.profile?.role !== "admin") { toast("Chỉ Admin được in bảng chấm công toàn hệ thống."); return; }
@@ -1265,7 +1421,7 @@ onAuthStateChanged(auth, async (user) => {
     await Promise.all([loadToday(), loadHistory()]);
     renderHistory();
     await loadRequests();
-    if (state.profile.role === "admin") await loadEmployees();
+    if (state.profile.role === "admin") { await loadEmployees(); $("monthly-confirmation-admin-panel").style.display=""; } else $("monthly-confirmation-admin-panel").style.display="none";
     await loadTasks();
   } catch (error) {
     showError(error);
