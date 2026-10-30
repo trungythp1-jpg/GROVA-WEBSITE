@@ -291,7 +291,7 @@ service cloud.firestore {
         && request.resource.data.totalWorkDays >= 0
         && request.resource.data.totalWorkDays <= 31
         && request.resource.data.attendanceFingerprint is string
-        && request.resource.data.attendanceFingerprint.matches('^[a-f0-9]{64})
+        && request.resource.data.attendanceFingerprint.matches('^[a-f0-9]{64}\\z')
         && request.resource.data.confirmedByUid == request.auth.uid
         && request.resource.data.confirmationType in ['self', 'admin_confirmed']
         && request.resource.data.confirmedAt == request.time
