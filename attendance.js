@@ -221,9 +221,10 @@ async function loadSystemAttendance() {
   if(state.profile?.role!=="admin")throw new Error("Chỉ Admin được xem và in bảng công toàn hệ thống.");
   const loadButton=$("load-system-attendance"),printButtons=[$("print-system-attendance"),$("print-system-attendance-bottom")],errorNode=$("system-attendance-error"),emptyNode=$("system-attendance-empty"),tableWrap=document.querySelector(".system-attendance-table-wrap");
   errorNode.hidden=true;errorNode.textContent="";loadButton.disabled=true;loadButton.textContent="Đang tải…";printButtons.forEach(button=>button.disabled=true);
+  const today=todayKey(),currentYear=Number(today.slice(0,4)),currentMonth=Number(today.slice(5,7));
   const year=Number($("system-attendance-year").value),month=Number($("system-attendance-month").value),pad=value=>String(value).padStart(2,"0");
-  if(!Number.isInteger(year)||year<2000||year>2100||!Number.isInteger(month)||month<1||month>12){loadButton.disabled=false;loadButton.textContent="Xem bảng công tháng";throw new Error("Vui lòng chọn năm và tháng hợp lệ.");}
-  const from=year+"-"+pad(month)+"-01",to=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);
+  if(!Number.isInteger(year)||year<2026||year>currentYear||!Number.isInteger(month)||month<1||month>12||(year===currentYear&&month>currentMonth)){loadButton.disabled=false;loadButton.textContent="Xem bảng công tháng";throw new Error("Chỉ được xem bảng công từ tháng 01/2026 đến tháng hiện tại. Không thể chọn ngày tương lai.");}
+  const from=year+"-"+pad(month)+"-01",monthLastDay=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10),to=monthLastDay>today?today:monthLastDay;
   const period={key:year+"-"+pad(month),start:new Date(Date.UTC(year,month-2,25)).toISOString().slice(0,10),end:new Date(Date.UTC(year,month-1,24)).toISOString().slice(0,10),label:pad(month)+"/"+year};
   $("system-attendance-note").textContent="Đang tải bảng công tháng "+pad(month)+"/"+year+" và kỳ xác nhận tương ứng…";
   try{
@@ -1088,11 +1089,18 @@ $("monthly-confirmation-submit").addEventListener("click",async()=>{
 $("monthly-confirmation-admin-refresh").addEventListener("click",()=>Promise.all([loadAdminMonthlyConfirmations(),loadSystemAttendance()]).catch(showError));
 const attendanceYearSelect=$("system-attendance-year");
 const attendanceMonthSelect=$("system-attendance-month");
-const currentAttendanceYear=Number(todayKey().slice(0,4));
-for(let year=currentAttendanceYear-3;year<=currentAttendanceYear+1;year++){const option=document.createElement("option");option.value=String(year);option.textContent=String(year);attendanceYearSelect.append(option);}
-for(let month=1;month<=12;month++){const option=document.createElement("option");option.value=String(month);option.textContent="Tháng "+String(month).padStart(2,"0");attendanceMonthSelect.append(option);}
+const getAttendanceToday=()=>todayKey();
+const currentAttendanceYear=Number(getAttendanceToday().slice(0,4));
+for(let year=2026;year<=currentAttendanceYear;year++){const option=document.createElement("option");option.value=String(year);option.textContent=String(year);attendanceYearSelect.append(option);}
+function refreshAttendanceMonthOptions(){
+  const selectedYear=Number(attendanceYearSelect.value),today=getAttendanceToday(),maxMonth=selectedYear===Number(today.slice(0,4))?Number(today.slice(5,7)):12,previousMonth=Number(attendanceMonthSelect.value)||maxMonth;
+  attendanceMonthSelect.replaceChildren();
+  for(let month=1;month<=maxMonth;month++){const option=document.createElement("option");option.value=String(month);option.textContent="Tháng "+String(month).padStart(2,"0");attendanceMonthSelect.append(option);}
+  attendanceMonthSelect.value=String(Math.min(previousMonth,maxMonth));
+}
 attendanceYearSelect.value=String(currentAttendanceYear);
-attendanceMonthSelect.value=String(Number(todayKey().slice(5,7)));
+refreshAttendanceMonthOptions();
+attendanceYearSelect.addEventListener("change",refreshAttendanceMonthOptions);
 $("load-system-attendance").addEventListener("click", () => loadSystemAttendance().catch(showError));
 function printSystemAttendance() {
   if(state.profile?.role!=="admin"){toast("Chỉ Admin được in bảng chấm công toàn hệ thống.");return;}
