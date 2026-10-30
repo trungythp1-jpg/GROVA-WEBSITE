@@ -130,3 +130,12 @@ body .sub-hero .sub-lead{font-size:13px}
 .division-interiors .sub-hero-photo img{object-position:center 50%}
 .division-law .sub-hero-photo img{object-position:center 48%}
 .division-education .sub-hero-photo img{object-position:center 55%}
+
+body .sub-hero{background:#062c4c!important}
+body .sub-hero:before{content:""!important;display:block!important;position:absolute!important;inset:0!important;z-index:-1!important;background:linear-gradient(90deg,rgba(4,31,52,.94) 0%,rgba(4,31,52,.78) 48%,rgba(4,31,52,.22) 100%)!important}
+body .sub-hero .sub-hero-photo{position:absolute!important;inset:0!important;z-index:-2!important;display:block!important}
+body .sub-hero .sub-hero-photo img{width:100%!important;height:100%!important;object-fit:cover!important}
+body .sub-hero h1{color:#fff!important}
+body .sub-hero h1 em{color:#a5e77b!important;-webkit-text-fill-color:#a5e77b!important}
+body .sub-hero .sub-kicker,body .sub-hero .sub-lead{color:#f2f7fa!important}
+body .sub-hero .sub-hero-note{position:relative;z-index:2;color:#d8e7ee!important}
