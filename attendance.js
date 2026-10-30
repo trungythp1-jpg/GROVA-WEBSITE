@@ -229,93 +229,103 @@ async function loadSystemAttendance() {
   loadButton.disabled = true;
   loadButton.textContent = "Đang tải…";
   printButtons.forEach(button => { button.disabled = true; });
-  $("system-attendance-note").textContent = "Đang tải dữ liệu chấm công và xác nhận cuối kỳ…";
-  const from = $("system-attendance-from").value;
-  const to = $("system-attendance-to").value;
-  if (!from || !to || from > to) { loadButton.disabled = false; loadButton.textContent = "Xem bảng công"; throw new Error("Vui lòng chọn khoảng ngày hợp lệ."); }
+  $("system-attendance-note").textContent = "Đang tải dữ liệu cả năm và 12 kỳ xác nhận…";
+  const year = Number($("system-attendance-year").value);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) { loadButton.disabled = false; loadButton.textContent = "Xem bảng công cả năm"; throw new Error("Vui lòng chọn năm hợp lệ."); }
+  const from = year + "-01-01";
+  const to = year + "-12-31";
+  const dateKey = date => date.toISOString().slice(0,10);
+  const periods = Array.from({length:12},(_,index)=>{
+    const month=index+1;
+    const endDate=new Date(Date.UTC(year,month-1,24));
+    const startDate=new Date(Date.UTC(year,month-2,25));
+    const key=year+"-"+String(month).padStart(2,"0");
+    return {key,start:dateKey(startDate),end:dateKey(endDate),label:String(month).padStart(2,"0")+"/"+year};
+  });
+  const recordsFrom=periods[0].start;
   try {
-    const selectedDate = new Date(to + "T00:00:00Z");
-    const selectedDay = selectedDate.getUTCDate();
-    const periodEndDate = new Date(Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth() + (selectedDay >= 25 ? 1 : 0), 24));
-    const periodStartDate = new Date(Date.UTC(periodEndDate.getUTCFullYear(), periodEndDate.getUTCMonth() - 1, 25));
-    const periodDateKey = date => date.toISOString().slice(0,10);
-    const confirmationPeriod = {
-      start: periodDateKey(periodStartDate),
-      end: periodDateKey(periodEndDate),
-      key: periodDateKey(periodEndDate).slice(0,7)
-    };
-    const [usersSnap, recordsSnap, periodRecordsSnap, confirmationsSnap] = await Promise.all([
+    const [usersSnap, recordsSnap, ...confirmationSnaps] = await Promise.all([
       getDocs(query(collection(db, "attendance_users"), where("active", "==", true), limit(500))),
-      getDocs(query(collection(db, "attendance_records"), where("date", ">=", from), where("date", "<=", to), limit(5000))),
-      getDocs(query(collection(db, "attendance_records"), where("date", ">=", confirmationPeriod.start), where("date", "<=", confirmationPeriod.end), limit(5000))),
-      getDocs(query(collection(db, "attendance_monthly_confirmations"), where("periodKey", "==", confirmationPeriod.key), limit(500)))
+      getDocs(query(collection(db, "attendance_records"), where("date", ">=", recordsFrom), where("date", "<=", to), limit(5000))),
+      ...periods.map(period=>getDocs(query(collection(db,"attendance_monthly_confirmations"),where("periodKey","==",period.key),limit(500))))
     ]);
-    const users = usersSnap.docs.map(item => ({ id: item.id, ...item.data() })).sort((a,b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
-    const records = recordsSnap.docs.map(item => ({ id: item.id, ...item.data() }));
-    const periodRecords = periodRecordsSnap.docs.map(item => ({ id: item.id, ...item.data() }));
-    const confirmations = new Map(confirmationsSnap.docs.map(item => [item.data().uid, item.data()]));
-    state.systemAttendanceReport = { users, records, confirmations: confirmationsSnap.docs.map(item => item.data()), from, to, periodKey: confirmationPeriod.key, confirmationPeriod };
-    const dates = [];
-    for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
-    const byKey = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
-    const byUid = new Map();
-    periodRecords.forEach(record => { if (!byUid.has(record.uid)) byUid.set(record.uid, []); byUid.get(record.uid).push(record); });
-    const head = $("system-attendance-head"), body = $("system-attendance-body");
-    head.replaceChildren(); body.replaceChildren();
-    const headRow = document.createElement("tr");
-    ["NHÂN VIÊN", "BỘ PHẬN", ...dates.map(day => isSundayKey(day) ? day.slice(8) + "/" + day.slice(5,7) + " CN" : day.slice(8) + "/" + day.slice(5,7)), "TỔNG NGÀY CÔNG", "XÁC NHẬN BẢNG CÔNG · KỲ " + confirmationPeriod.start.slice(8,10) + "/" + confirmationPeriod.start.slice(5,7) + "–" + confirmationPeriod.end.slice(8,10) + "/" + confirmationPeriod.end.slice(5,7)].forEach(label => {
-      const th = document.createElement("th"); th.textContent = label; headRow.append(th);
+    const users=usersSnap.docs.map(item=>({id:item.id,...item.data()})).sort((a,b)=>String(a.displayName||a.email||"").localeCompare(String(b.displayName||b.email||""),"vi"));
+    const allRecords=recordsSnap.docs.map(item=>({id:item.id,...item.data()}));
+    const reportRecords=allRecords.filter(record=>record.date>=from&&record.date<=to);
+    const recordsByKey=new Map(reportRecords.map(record=>[String(record.uid)+"_"+String(record.date),record]));
+    const recordsByUserPeriod=new Map();
+    allRecords.forEach(record=>{
+      const month=record.date>=year+"-01-01"&&record.date<=year+"-01-24"?1:Number(record.date.slice(5,7))+(Number(record.date.slice(8,10))>=25?1:0);
+      const periodIndex=month-1;
+      if(periodIndex>=0&&periodIndex<12){
+        const key=String(record.uid)+"_"+periods[periodIndex].key;
+        if(!recordsByUserPeriod.has(key))recordsByUserPeriod.set(key,[]);
+        recordsByUserPeriod.get(key).push(record);
+      }
+      if(record.date>=recordsFrom&&record.date<=year+"-12-24"&&record.date.slice(0,7)===year+"-12"&&Number(record.date.slice(8,10))>=25){
+        const key=String(record.uid)+"_"+periods[11].key;
+        if(!recordsByUserPeriod.has(key))recordsByUserPeriod.set(key,[]);
+        recordsByUserPeriod.get(key).push(record);
+      }
     });
+    const confirmationsByPeriod=periods.map((period,index)=>new Map(confirmationSnaps[index].docs.map(item=>[item.data().uid,item.data()])));
+    state.systemAttendanceReport={users,records:reportRecords,allPeriodRecords:allRecords,confirmationsByPeriod,periods,from,to,year};
+    const dates=[];
+    for(let day=from;day<=to;day=dateKeyAddDays(day,1))dates.push(day);
+    const head=$("system-attendance-head"),body=$("system-attendance-body");
+    head.replaceChildren();body.replaceChildren();
+    const headRow=document.createElement("tr");
+    ["NHÂN VIÊN","BỘ PHẬN",...dates.map(day=>isSundayKey(day)?day.slice(8)+"/"+day.slice(5,7)+" CN":day.slice(8)+"/"+day.slice(5,7)),"TỔNG NGÀY CÔNG",...periods.map(period=>"XÁC NHẬN T"+period.label.slice(0,2))].forEach(label=>{const th=document.createElement("th");th.textContent=label;headRow.append(th);});
     head.append(headRow);
-    let confirmed = 0, pending = 0, needsReview = 0;
-    for (const user of users) {
-      const row = document.createElement("tr");
-      [user.displayName || user.email || user.id, user.department || "Chưa phân bộ phận"].forEach(value => { const td=document.createElement("td"); td.textContent=value; row.append(td); });
-      let worked = 0;
-      dates.forEach(day => {
-        const td = document.createElement("td");
-        if (isSundayKey(day)) { td.textContent = "Nghỉ"; td.className = "sunday-cell"; }
-        else {
-          const record = byKey.get(user.id + "_" + day);
-          const startTime = asDate(record?.clockInAt), finishTime = asDate(record?.clockOutAt);
-          if (startTime && finishTime) { td.textContent = fmtTime(startTime) + "–" + fmtTime(finishTime); worked += 1; td.className = "attendance-worked"; }
-          else if (startTime) { td.textContent = fmtTime(startTime) + "–…"; td.className = "attendance-open"; }
-          else { td.textContent = "—"; td.className = "attendance-missing"; }
+    const counts=periods.map(()=>({confirmed:0,pending:0,review:0}));
+    for(const user of users){
+      const row=document.createElement("tr");
+      [user.displayName||user.email||user.id,user.department||"Chưa phân bộ phận"].forEach(value=>{const td=document.createElement("td");td.textContent=value;row.append(td);});
+      let worked=0;
+      dates.forEach(day=>{
+        const td=document.createElement("td");
+        if(isSundayKey(day)){td.textContent="Nghỉ";td.className="sunday-cell";}
+        else{
+          const record=recordsByKey.get(user.id+"_"+day);
+          const startTime=asDate(record?.clockInAt),finishTime=asDate(record?.clockOutAt);
+          if(startTime&&finishTime){td.textContent=fmtTime(startTime)+"–"+fmtTime(finishTime);worked++;td.className="attendance-worked";}
+          else if(startTime){td.textContent=fmtTime(startTime)+"–…";td.className="attendance-open";}
+          else{td.textContent="—";td.className="attendance-missing";}
         }
         row.append(td);
       });
-      const total = document.createElement("td"); total.textContent = String(worked); total.className = "attendance-total"; row.append(total);
-      const confirmation = confirmations.get(user.id);
-      let confirmationLabel = "Chưa xác nhận";
-      let confirmationClass = "confirmation-pending";
-      if (confirmation) {
-        const currentFingerprint = await fingerprintAttendance(byUid.get(user.id) || [], confirmationPeriod);
-        if (currentFingerprint !== confirmation.attendanceFingerprint) { confirmationLabel = "Cần xác nhận lại"; confirmationClass = "confirmation-warning"; needsReview++; }
-        else { confirmationLabel = confirmation.confirmationType === "admin_confirmed" ? "Admin xác nhận hộ" : "Đã xác nhận"; confirmationClass = "confirmation-good"; confirmed++; }
-      } else pending++;
-      const confirmationCell = document.createElement("td");
-      confirmationCell.textContent = confirmationLabel;
-      confirmationCell.className = confirmationClass;
-      row.append(confirmationCell);
+      const total=document.createElement("td");total.textContent=String(worked);total.className="attendance-total";row.append(total);
+      for(let index=0;index<12;index++){
+        const period=periods[index],confirmation=confirmationsByPeriod[index].get(user.id);
+        const td=document.createElement("td");
+        if(!confirmation){td.textContent="Chưa xác nhận";td.className="confirmation-pending";counts[index].pending++;}
+        else{
+          const fingerprint=await fingerprintAttendance(recordsByUserPeriod.get(user.id+"_"+period.key)||[],period);
+          if(fingerprint!==confirmation.attendanceFingerprint){td.textContent="Cần xác nhận lại";td.className="confirmation-warning";counts[index].review++;}
+          else{td.textContent=confirmation.confirmationType==="admin_confirmed"?"Admin xác nhận hộ":"Đã xác nhận";td.className="confirmation-good";counts[index].confirmed++;}
+        }
+        row.append(td);
+      }
       body.append(row);
     }
-    if (!users.length) { const row=document.createElement("tr"),td=document.createElement("td"); td.colSpan=dates.length+4;td.textContent="Không có nhân sự đang hoạt động.";row.append(td);body.append(row); }
-    $("system-attendance-note").textContent = "Khoảng bảng công: " + from + " – " + to + ". Trạng thái xác nhận được đối chiếu riêng theo kỳ " + confirmationPeriod.start + " – " + confirmationPeriod.end + ". Đã xác nhận: " + confirmed + " · Chưa xác nhận: " + pending + " · Cần xác nhận lại: " + needsReview + ".";
-    $("system-attendance-print-period").textContent = "Khoảng bảng công: " + from + " đến " + to + " · Kỳ xác nhận độc lập: " + confirmationPeriod.start + " đến " + confirmationPeriod.end + " · Chủ nhật: nghỉ hàng tuần";
-    emptyNode.hidden = users.length > 0;
-    tableWrap.hidden = users.length === 0;
-    printButtons.forEach(button => { button.disabled = users.length === 0; });
-  } catch (error) {
-    errorNode.hidden = false;
-    errorNode.textContent = error?.code === "permission-denied" ? "Firebase từ chối quyền đọc dữ liệu chấm công hoặc xác nhận. Hãy kiểm tra Rules đã Publish." : "Không tải được bảng công: " + (error?.message || "Lỗi không xác định");
-    $("system-attendance-note").textContent = "Tải bảng công thất bại.";
-    emptyNode.hidden = false;
-    emptyNode.querySelector("strong").textContent = "Không tải được dữ liệu";
-    emptyNode.querySelector("span:last-child").textContent = "Kiểm tra thông báo lỗi phía trên rồi thử lại.";
+    if(!users.length){const row=document.createElement("tr"),td=document.createElement("td");td.colSpan=dates.length+15;td.textContent="Không có nhân sự đang hoạt động.";row.append(td);body.append(row);}
+    const summary=counts.map((item,index)=>"T"+String(index+1).padStart(2,"0")+": "+item.confirmed+" đã xác nhận / "+item.pending+" chưa / "+item.review+" cần lại").join(" · ");
+    $("system-attendance-note").textContent="Năm "+year+" · "+users.length+" nhân sự · "+dates.length+" ngày · "+reportRecords.length+" bản ghi. "+summary;
+    $("system-attendance-print-period").textContent="Năm chấm công: "+year+" (01/01–31/12) · Xác nhận theo 12 kỳ tháng: ngày 25 tháng trước đến ngày 24 tháng tương ứng.";
+    emptyNode.hidden=users.length>0;
+    tableWrap.hidden=users.length===0;
+    printButtons.forEach(button=>{button.disabled=users.length===0;});
+  }catch(error){
+    errorNode.hidden=false;
+    errorNode.textContent=error?.code==="permission-denied"?"Firebase từ chối quyền đọc dữ liệu chấm công hoặc xác nhận. Hãy kiểm tra Rules đã Publish.":"Không tải được bảng công: "+(error?.message||"Lỗi không xác định");
+    $("system-attendance-note").textContent="Tải bảng công thất bại.";
+    emptyNode.hidden=false;
+    emptyNode.querySelector("strong").textContent="Không tải được dữ liệu";
+    emptyNode.querySelector("span:last-child").textContent="Kiểm tra thông báo lỗi phía trên rồi thử lại.";
     throw error;
-  } finally {
-    loadButton.disabled = false;
-    loadButton.textContent = "Xem bảng công";
+  }finally{
+    loadButton.disabled=false;
+    loadButton.textContent="Xem bảng công cả năm";
   }
 }
 
