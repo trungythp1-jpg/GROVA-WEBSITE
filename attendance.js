@@ -229,56 +229,77 @@ async function loadSystemAttendance() {
   loadButton.disabled = true;
   loadButton.textContent = "Đang tải…";
   printButtons.forEach(button => { button.disabled = true; });
-  $("system-attendance-note").textContent = "Đang tải dữ liệu chấm công…";
+  $("system-attendance-note").textContent = "Đang tải dữ liệu chấm công và xác nhận cuối kỳ…";
   const from = $("system-attendance-from").value;
   const to = $("system-attendance-to").value;
   if (!from || !to || from > to) { loadButton.disabled = false; loadButton.textContent = "Xem bảng công"; throw new Error("Vui lòng chọn khoảng ngày hợp lệ."); }
   try {
-  const [usersSnap, recordsSnap] = await Promise.all([
-    getDocs(query(collection(db, "attendance_users"), where("active", "==", true), limit(500))),
-    getDocs(query(collection(db, "attendance_records"), where("date", ">=", from), where("date", "<=", to), limit(5000)))
-  ]);
-  const users = usersSnap.docs.map(item => ({ id: item.id, ...item.data() })).sort((a,b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
-  const records = recordsSnap.docs.map(item => ({ id: item.id, ...item.data() }));
-  state.systemAttendanceReport = { users, records, from, to };
-  const dates = [];
-  for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
-  const byKey = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
-  const head = $("system-attendance-head"), body = $("system-attendance-body");
-  head.replaceChildren(); body.replaceChildren();
-  const headRow = document.createElement("tr");
-  ["NHÂN VIÊN", "BỘ PHẬN", ...dates.map(day => isSundayKey(day) ? day.slice(8) + "/" + day.slice(5,7) + " CN" : day.slice(8) + "/" + day.slice(5,7)), "TỔNG NGÀY CÔNG"].forEach(label => {
-    const th = document.createElement("th"); th.textContent = label; headRow.append(th);
-  });
-  head.append(headRow);
-  users.forEach(user => {
-    const row = document.createElement("tr");
-    [user.displayName || user.email || user.id, user.department || "Chưa phân bộ phận"].forEach(value => { const td=document.createElement("td"); td.textContent=value; row.append(td); });
-    let worked = 0;
-    dates.forEach(day => {
-      const td = document.createElement("td");
-      if (isSundayKey(day)) { td.textContent = "Nghỉ"; td.className = "sunday-cell"; }
-      else {
-        const record = byKey.get(user.id + "_" + day);
-        const start = asDate(record?.clockInAt), end = asDate(record?.clockOutAt);
-        if (start && end) { td.textContent = fmtTime(start) + "–" + fmtTime(end); worked += 1; td.className = "attendance-worked"; }
-        else if (start) { td.textContent = fmtTime(start) + "–…"; td.className = "attendance-open"; }
-        else { td.textContent = "—"; td.className = "attendance-missing"; }
-      }
-      row.append(td);
+    const periodKey = to.slice(0, 7);
+    const [usersSnap, recordsSnap, confirmationsSnap] = await Promise.all([
+      getDocs(query(collection(db, "attendance_users"), where("active", "==", true), limit(500))),
+      getDocs(query(collection(db, "attendance_records"), where("date", ">=", from), where("date", "<=", to), limit(5000))),
+      getDocs(query(collection(db, "attendance_monthly_confirmations"), where("periodKey", "==", periodKey), limit(500)))
+    ]);
+    const users = usersSnap.docs.map(item => ({ id: item.id, ...item.data() })).sort((a,b) => String(a.displayName || a.email || "").localeCompare(String(b.displayName || b.email || ""), "vi"));
+    const records = recordsSnap.docs.map(item => ({ id: item.id, ...item.data() }));
+    const confirmations = new Map(confirmationsSnap.docs.map(item => [item.data().uid, item.data()]));
+    state.systemAttendanceReport = { users, records, confirmations: confirmationsSnap.docs.map(item => item.data()), from, to, periodKey };
+    const dates = [];
+    for (let day = from; day <= to; day = dateKeyAddDays(day, 1)) dates.push(day);
+    const byKey = new Map(records.map(record => [String(record.uid) + "_" + String(record.date), record]));
+    const byUid = new Map();
+    records.forEach(record => { if (!byUid.has(record.uid)) byUid.set(record.uid, []); byUid.get(record.uid).push(record); });
+    const head = $("system-attendance-head"), body = $("system-attendance-body");
+    head.replaceChildren(); body.replaceChildren();
+    const headRow = document.createElement("tr");
+    ["NHÂN VIÊN", "BỘ PHẬN", ...dates.map(day => isSundayKey(day) ? day.slice(8) + "/" + day.slice(5,7) + " CN" : day.slice(8) + "/" + day.slice(5,7)), "TỔNG NGÀY CÔNG", "XÁC NHẬN BẢNG CÔNG"].forEach(label => {
+      const th = document.createElement("th"); th.textContent = label; headRow.append(th);
     });
-    const total = document.createElement("td"); total.textContent = String(worked); total.className = "attendance-total"; row.append(total);
-    body.append(row);
-  });
-  if (!users.length) { const row=document.createElement("tr"),td=document.createElement("td"); td.colSpan=dates.length+3;td.textContent="Không có nhân sự đang hoạt động.";row.append(td);body.append(row); }
-  $("system-attendance-note").textContent = "Đã tải " + users.length + " nhân sự · " + dates.length + " ngày · " + records.length + " bản ghi.";
-  $("system-attendance-print-period").textContent = "Thời gian: " + from + " đến " + to + " · Chủ nhật: nghỉ hàng tuần";
-  emptyNode.hidden = users.length > 0;
-  tableWrap.hidden = users.length === 0;
-  printButtons.forEach(button => { button.disabled = users.length === 0; });
+    head.append(headRow);
+    let confirmed = 0, pending = 0, needsReview = 0;
+    for (const user of users) {
+      const row = document.createElement("tr");
+      [user.displayName || user.email || user.id, user.department || "Chưa phân bộ phận"].forEach(value => { const td=document.createElement("td"); td.textContent=value; row.append(td); });
+      let worked = 0;
+      dates.forEach(day => {
+        const td = document.createElement("td");
+        if (isSundayKey(day)) { td.textContent = "Nghỉ"; td.className = "sunday-cell"; }
+        else {
+          const record = byKey.get(user.id + "_" + day);
+          const start = asDate(record?.clockInAt), finish = asDate(record?.clockOutAt);
+          if (start && finish) { td.textContent = fmtTime(start) + "–" + fmtTime(finish); worked += 1; td.className = "attendance-worked"; }
+          else if (start) { td.textContent = fmtTime(start) + "–…"; td.className = "attendance-open"; }
+          else { td.textContent = "—"; td.className = "attendance-missing"; }
+        }
+        row.append(td);
+      });
+      const total = document.createElement("td"); total.textContent = String(worked); total.className = "attendance-total"; row.append(total);
+      const confirmation = confirmations.get(user.id);
+      let confirmationLabel = "Chưa xác nhận";
+      let confirmationClass = "confirmation-pending";
+      if (confirmation) {
+        const userRecords = byUid.get(user.id) || [];
+        const exactPeriod = from.slice(8,10) === "25" && to.slice(8,10) === "24";
+        const currentFingerprint = exactPeriod ? await fingerprintAttendance(userRecords) : null;
+        const mismatch = exactPeriod && currentFingerprint !== confirmation.attendanceFingerprint;
+        if (mismatch) { confirmationLabel = "Cần xác nhận lại"; confirmationClass = "confirmation-warning"; needsReview++; }
+        else { confirmationLabel = confirmation.confirmationType === "admin_confirmed" ? "Admin xác nhận hộ" : "Đã xác nhận"; confirmationClass = "confirmation-good"; confirmed++; }
+      } else pending++;
+      const confirmationCell = document.createElement("td");
+      confirmationCell.textContent = confirmationLabel;
+      confirmationCell.className = confirmationClass;
+      row.append(confirmationCell);
+      body.append(row);
+    }
+    if (!users.length) { const row=document.createElement("tr"),td=document.createElement("td"); td.colSpan=dates.length+4;td.textContent="Không có nhân sự đang hoạt động.";row.append(td);body.append(row); }
+    $("system-attendance-note").textContent = "Đã tải " + users.length + " nhân sự · " + dates.length + " ngày · " + records.length + " bản ghi · Đã xác nhận: " + confirmed + " · Chưa xác nhận: " + pending + " · Cần xác nhận lại: " + needsReview + ".";
+    $("system-attendance-print-period").textContent = "Thời gian: " + from + " đến " + to + " · Kỳ xác nhận: " + periodKey + " · Chủ nhật: nghỉ hàng tuần";
+    emptyNode.hidden = users.length > 0;
+    tableWrap.hidden = users.length === 0;
+    printButtons.forEach(button => { button.disabled = users.length === 0; });
   } catch (error) {
     errorNode.hidden = false;
-    errorNode.textContent = error?.code === "permission-denied" ? "Firebase từ chối quyền đọc dữ liệu. Hãy kiểm tra tài khoản Admin và Firestore Rules." : "Không tải được bảng công: " + (error?.message || "Lỗi không xác định");
+    errorNode.textContent = error?.code === "permission-denied" ? "Firebase từ chối quyền đọc dữ liệu chấm công hoặc xác nhận. Hãy kiểm tra Rules đã Publish." : "Không tải được bảng công: " + (error?.message || "Lỗi không xác định");
     $("system-attendance-note").textContent = "Tải bảng công thất bại.";
     emptyNode.hidden = false;
     emptyNode.querySelector("strong").textContent = "Không tải được dữ liệu";
