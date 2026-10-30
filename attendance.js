@@ -519,7 +519,7 @@ async function loadAdminMonthlyConfirmations() {
     action.addEventListener("click",async()=>{
       if(state.profile?.role!=="admin")return;
       action.disabled=true;
-      try{await submitMonthlyConfirmation(user.id,true);await loadAdminMonthlyConfirmations();toast("Đã xác nhận bảng công cho "+(user.displayName||"nhân viên")+".");}
+      try{await submitMonthlyConfirmation(user.id,true);await loadAdminMonthlyConfirmations();await loadSystemAttendance();toast("Đã xác nhận bảng công cho "+(user.displayName||"nhân viên")+".");}
       catch(error){showError(error);action.disabled=false;}
     });
     actionCell.append(action);row.append(actionCell);body.append(row);
@@ -1131,7 +1131,7 @@ $("monthly-confirmation-submit").addEventListener("click",async()=>{
   try{await submitMonthlyConfirmation(state.user.uid,false);await loadOwnMonthlyConfirmation();toast("Đã ghi nhận xác nhận bảng công của bạn.");}
   catch(error){showError(error);button.disabled=false;}
 });
-$("monthly-confirmation-admin-refresh").addEventListener("click",()=>loadAdminMonthlyConfirmations().catch(showError));
+$("monthly-confirmation-admin-refresh").addEventListener("click",()=>Promise.all([loadAdminMonthlyConfirmations(),loadSystemAttendance()]).catch(showError));
 $("load-system-attendance").addEventListener("click", () => loadSystemAttendance().catch(showError));
 function printSystemAttendance() {
   if (state.profile?.role !== "admin") { toast("Chỉ Admin được in bảng chấm công toàn hệ thống."); return; }
