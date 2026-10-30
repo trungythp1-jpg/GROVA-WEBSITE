@@ -258,7 +258,51 @@ service cloud.firestore {
     }
 
     match /attendance_monthly_confirmations/{confirmationId} {
-      allow get: if activeUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow get: if activeUser() && (isAdmin() || confirmationId.matches('^[0-9]{4}-[0-9]{2}_' + request.auth.uid + '
+      allow list: if isAdmin();
+      allow create: if activeUser()
+        && request.resource.data.keys().hasAll(['uid', 'periodKey', 'periodStart', 'periodEnd', 'totalWorkDays', 'attendanceFingerprint', 'confirmedByUid', 'confirmationType', 'confirmedAt', 'revision', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'periodKey', 'periodStart', 'periodEnd', 'totalWorkDays', 'attendanceFingerprint', 'confirmedByUid', 'confirmationType', 'confirmedAt', 'revision', 'createdAt'])
+        && confirmationId == request.resource.data.periodKey + '_' + request.resource.data.uid
+        && request.resource.data.uid is string
+        && request.resource.data.periodKey is string
+        && request.resource.data.periodKey.matches('^[0-9]{4}-[0-9]{2}$')
+        && request.resource.data.periodStart is string
+        && request.resource.data.periodEnd is string
+        && request.resource.data.totalWorkDays is number
+        && request.resource.data.totalWorkDays >= 0
+        && request.resource.data.totalWorkDays <= 31
+        && request.resource.data.attendanceFingerprint is string
+        && request.resource.data.attendanceFingerprint.matches('^[a-f0-9]{64}$')
+        && request.resource.data.confirmedByUid == request.auth.uid
+        && request.resource.data.confirmationType in ['self', 'admin_confirmed']
+        && request.resource.data.confirmedAt == request.time
+        && request.resource.data.revision == 1
+        && request.resource.data.createdAt == request.time
+        && ((request.resource.data.confirmationType == 'self' && request.resource.data.uid == request.auth.uid)
+          || (request.resource.data.confirmationType == 'admin_confirmed' && isAdmin()));
+      allow update: if activeUser()
+        && (resource.data.uid == request.auth.uid || isAdmin())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalWorkDays', 'attendanceFingerprint', 'confirmedByUid', 'confirmationType', 'confirmedAt', 'revision'])
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.periodKey == resource.data.periodKey
+        && request.resource.data.periodStart == resource.data.periodStart
+        && request.resource.data.periodEnd == resource.data.periodEnd
+        && request.resource.data.totalWorkDays is number
+        && request.resource.data.totalWorkDays >= 0
+        && request.resource.data.totalWorkDays <= 31
+        && request.resource.data.attendanceFingerprint is string
+        && request.resource.data.attendanceFingerprint.matches('^[a-f0-9]{64}$')
+        && request.resource.data.confirmedByUid == request.auth.uid
+        && request.resource.data.confirmationType in ['self', 'admin_confirmed']
+        && request.resource.data.confirmedAt == request.time
+        && request.resource.data.revision == resource.data.revision + 1
+        && ((request.resource.data.confirmationType == 'self' && resource.data.uid == request.auth.uid)
+          || (request.resource.data.confirmationType == 'admin_confirmed' && isAdmin()));
+      allow delete: if false;
+    }
+  }
+}));
       allow list: if isAdmin();
       allow create: if activeUser()
         && request.resource.data.keys().hasAll(['uid', 'periodKey', 'periodStart', 'periodEnd', 'totalWorkDays', 'attendanceFingerprint', 'confirmedByUid', 'confirmationType', 'confirmedAt', 'revision', 'createdAt'])
