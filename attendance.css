@@ -306,3 +306,7 @@
   #view-tasks .task-summary .summary-card:first-child{grid-column:auto}
   #view-tasks .task-pagination span{min-width:70px;font-size:11px}
 }
+
+.system-attendance-table .confirmation-good{color:#286545;background:#f0f7f0;font-weight:750}
+.system-attendance-table .confirmation-pending{color:#8a7444;background:#fbf7ed;font-weight:700}
+.system-attendance-table .confirmation-warning{color:#a34d36;background:#fff1ed;font-weight:750}
