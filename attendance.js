@@ -363,7 +363,7 @@ function getConfirmationPeriod() {
   const year = Number(today.slice(0,4));
   const month = Number(today.slice(5,7));
   const day = Number(today.slice(8,10));
-  const endBase = new Date(Date.UTC(year, month - (day >= 25 ? 0 : 1), 1));
+  const endBase = new Date(Date.UTC(year, month - (day >= 25 ? 1 : 2), 1));
   const endYear = endBase.getUTCFullYear();
   const endMonth = endBase.getUTCMonth() + 1;
   const startBase = new Date(Date.UTC(endYear, endMonth - 2, 25));
@@ -459,7 +459,7 @@ async function submitMonthlyConfirmation(uid = state.user.uid, adminMode = false
     confirmedAt: serverTimestamp(),
     revision
   };
-  if (existing.exists()) await setDoc(ref,data);
+  if (existing.exists()) await setDoc(ref,data,{merge:true});
   else await setDoc(ref,{...data,createdAt:serverTimestamp()});
   return data;
 }
@@ -479,12 +479,14 @@ async function loadAdminMonthlyConfirmations() {
   const body = $("monthly-confirmation-admin-rows");
   body.replaceChildren();
   let signed=0, unsigned=0, changed=0;
-  users.sort((a,b)=>String(a.displayName||"").localeCompare(String(b.displayName||""),"vi")).forEach(user=>{
+  for (const user of users.sort((a,b)=>String(a.displayName||"").localeCompare(String(b.displayName||""),"vi"))) {
     const confirmation=confirmations.get(user.id);
     const userRecords=byUid.get(user.id)||[];
     const total=countConfirmedWorkDays(userRecords);
-    const status=confirmation ? (confirmation.totalWorkDays !== total ? "Cần kiểm tra" : confirmation.confirmationType==="admin_confirmed" ? "Admin xác nhận hộ" : "Đã xác nhận") : "Chưa xác nhận";
-    if(!confirmation) unsigned++; else if(status==="Cần kiểm tra") changed++; else signed++;
+    const currentFingerprint=await fingerprintAttendance(userRecords);
+    const mismatch=Boolean(confirmation && (confirmation.attendanceFingerprint!==currentFingerprint || confirmation.totalWorkDays!==total));
+    const status=confirmation ? (mismatch ? "Cần xác nhận lại" : confirmation.confirmationType==="admin_confirmed" ? "Admin xác nhận hộ" : "Đã xác nhận") : "Chưa xác nhận";
+    if(!confirmation) unsigned++; else if(mismatch) changed++; else signed++;
     const row=document.createElement("tr");
     const values=[user.displayName||user.email||user.id,user.department||"—",total+" ngày",status,confirmation?.confirmedByUid||"—"];
     values.forEach(value=>{const cell=document.createElement("td");cell.textContent=value;row.append(cell);});
@@ -500,7 +502,7 @@ async function loadAdminMonthlyConfirmations() {
       catch(error){showError(error);action.disabled=false;}
     });
     actionCell.append(action);row.append(actionCell);body.append(row);
-  });
+  }
   $("monthly-confirmation-admin-period").textContent=formatPeriodDate(period.start)+" – "+formatPeriodDate(period.end)+" · Hạn xác nhận: "+formatPeriodDate(period.deadline);
   $("monthly-confirmation-admin-summary").textContent="Đã xác nhận: "+signed+" · Chưa xác nhận: "+unsigned+" · Cần kiểm tra: "+changed;
 }
