@@ -227,3 +227,82 @@
 .monthly-confirmation-admin-panel .table-wrap{overflow-x:auto}
 .monthly-confirmation-admin-panel table{min-width:760px}
 @media(max-width:640px){.monthly-confirmation-summary{grid-template-columns:1fr}.monthly-confirmation-panel>.solid-button{width:100%}}
+
+
+@media(max-width:760px){
+  .sidebar{
+    position:sticky;
+    inset:auto;
+    top:0;
+    width:100%;
+    height:auto;
+    min-height:64px;
+    padding:9px 12px;
+    flex-direction:row;
+    align-items:center;
+    gap:6px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    background:#062c4c;
+    z-index:20;
+    -webkit-overflow-scrolling:touch;
+  }
+  .sidebar .brand{
+    flex:0 0 auto;
+    padding:0 8px 0 0;
+    gap:0;
+    font-size:0;
+    letter-spacing:0;
+  }
+  .sidebar .brand>span{display:none}
+  .sidebar .attendance-logo{width:38px;height:38px;flex:0 0 38px}
+  .sidebar .side-label,.sidebar .sidebar-bottom{display:none}
+  .sidebar .nav-item{
+    display:inline-flex;
+    flex:0 0 auto;
+    width:auto;
+    min-height:42px;
+    margin:0;
+    padding:9px 11px;
+    gap:7px;
+    justify-content:center;
+    white-space:nowrap;
+    font-size:11px;
+  }
+  .sidebar .nav-item span{display:inline-block;width:auto;font-size:16px}
+  .main{width:100%;max-width:none;margin:0;padding:0 16px 28px}
+  .topbar{height:62px}
+  .notice{margin:14px 0 20px}
+  #view-tasks .page-intro{margin:0 0 18px}
+  #view-tasks .page-intro h1{font-size:clamp(25px,7vw,32px);overflow-wrap:anywhere}
+  #view-tasks .task-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  #view-tasks .task-summary .summary-card{min-width:0;padding:15px;min-height:118px}
+  #view-tasks .task-summary .summary-card:first-child{grid-column:1/-1}
+  #view-tasks .task-create-panel{padding:17px}
+  #view-tasks .task-create-heading{align-items:stretch;flex-direction:column;gap:12px}
+  #view-tasks .task-create-heading>#task-open-employees{align-self:flex-start;max-width:100%;white-space:normal}
+  #view-tasks .task-form{width:100%;min-width:0}
+  #view-tasks .task-form .form-row{grid-template-columns:minmax(0,1fr);gap:12px}
+  #view-tasks .task-form label{min-width:0;width:100%}
+  #view-tasks .task-form input,#view-tasks .task-form select,#view-tasks .task-form textarea{width:100%;min-width:0;max-width:100%}
+  #view-tasks .task-form .solid-button{width:100%;min-height:44px}
+  #view-tasks .panel-heading:has(.task-filters){align-items:stretch;flex-direction:column;gap:12px}
+  #view-tasks .task-filters{display:grid;width:100%;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+  #view-tasks .task-filters input[type="search"]{grid-column:1/-1;width:100%;min-width:0;max-width:none}
+  #view-tasks .task-filters select{width:100%;min-width:0;max-width:100%}
+  #view-tasks .task-filters button{grid-column:1/-1;width:100%;min-height:42px}
+  #view-tasks .task-list-summary{align-items:flex-start;flex-direction:column}
+  #view-tasks .task-card{min-width:0;padding:15px}
+  #view-tasks .task-card-top{min-width:0;flex-direction:column;align-items:flex-start}
+  #view-tasks .task-card h3,#view-tasks .task-description{overflow-wrap:anywhere}
+  #view-tasks .task-card-bottom{width:100%;align-items:stretch;flex-direction:column}
+  #view-tasks .task-card-bottom select{width:100%;max-width:none;min-height:42px}
+  #view-tasks .task-pagination{gap:8px}
+  #view-tasks .task-pagination button{min-height:40px;padding:9px 11px}
+}
+@media(max-width:390px){
+  .main{padding-right:12px;padding-left:12px}
+  #view-tasks .task-summary{grid-template-columns:1fr}
+  #view-tasks .task-summary .summary-card:first-child{grid-column:auto}
+  #view-tasks .task-pagination span{min-width:70px;font-size:11px}
+}
