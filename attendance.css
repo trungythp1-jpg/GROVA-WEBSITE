@@ -216,3 +216,14 @@
  .system-attendance-table th:first-child,.system-attendance-table td:first-child{min-width:90px!important}
  .system-attendance-table th:nth-child(2),.system-attendance-table td:nth-child(2){min-width:65px!important}
 }
+
+.monthly-confirmation-panel,.monthly-confirmation-admin-panel{margin-bottom:18px}
+.monthly-confirmation-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0;padding:14px;background:#f4f7f5;border:1px solid #e1e9e3;border-radius:10px}
+.monthly-confirmation-summary>div{display:flex;flex-direction:column;gap:5px}
+.monthly-confirmation-summary small{font-size:10px;color:#718176;font-weight:700;letter-spacing:.06em}
+.monthly-confirmation-summary strong{font-size:18px;color:#173d2f}
+.monthly-confirmation-panel>.solid-button{min-height:42px}
+.table-status.warning{background:#fff3d9;color:#91651b}
+.monthly-confirmation-admin-panel .table-wrap{overflow-x:auto}
+.monthly-confirmation-admin-panel table{min-width:760px}
+@media(max-width:640px){.monthly-confirmation-summary{grid-template-columns:1fr}.monthly-confirmation-panel>.solid-button{width:100%}}
