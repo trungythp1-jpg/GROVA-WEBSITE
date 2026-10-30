@@ -255,15 +255,15 @@ async function loadSystemAttendance() {
     const recordsByKey=new Map(reportRecords.map(record=>[String(record.uid)+"_"+String(record.date),record]));
     const recordsByUserPeriod=new Map();
     allRecords.forEach(record=>{
-      const month=record.date>=year+"-01-01"&&record.date<=year+"-01-24"?1:Number(record.date.slice(5,7))+(Number(record.date.slice(8,10))>=25?1:0);
-      const periodIndex=month-1;
+      const recordYear=Number(record.date.slice(0,4));
+      const recordMonth=Number(record.date.slice(5,7));
+      const recordDay=Number(record.date.slice(8,10));
+      let periodIndex;
+      if(recordYear===year-1&&recordMonth===12&&recordDay>=25)periodIndex=0;
+      else if(recordYear===year)periodIndex=recordMonth+(recordDay>=25?1:0)-1;
+      else return;
       if(periodIndex>=0&&periodIndex<12){
         const key=String(record.uid)+"_"+periods[periodIndex].key;
-        if(!recordsByUserPeriod.has(key))recordsByUserPeriod.set(key,[]);
-        recordsByUserPeriod.get(key).push(record);
-      }
-      if(record.date>=recordsFrom&&record.date<=year+"-12-24"&&record.date.slice(0,7)===year+"-12"&&Number(record.date.slice(8,10))>=25){
-        const key=String(record.uid)+"_"+periods[11].key;
         if(!recordsByUserPeriod.has(key))recordsByUserPeriod.set(key,[]);
         recordsByUserPeriod.get(key).push(record);
       }
