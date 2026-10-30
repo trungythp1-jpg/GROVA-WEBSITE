@@ -399,3 +399,9 @@ button{font:inherit}
 @media(prefers-reduced-motion:reduce){
 .site-home *, .site-home *:before, .site-home *:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+@media(max-width:760px){
+.site-home #menu{display:flex;min-width:44px;min-height:44px;width:44px;height:44px;padding:0;align-items:center;justify-content:center;gap:6px;background:#fff;border:1px solid #d8e3e6;border-radius:2px;font-size:0;cursor:pointer}
+.site-home #menu span{display:block;width:18px;height:2px;background:#062c4c}
+}
+.site-home #menu:focus-visible{outline:3px solid #75c900;outline-offset:3px}
