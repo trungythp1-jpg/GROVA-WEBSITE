@@ -226,6 +226,143 @@ service cloud.firestore {
         && request.resource.data.reviewNote.size() <= 1000;
       allow delete: if isAdmin();
     }
+
+    match /attendance_monthly_confirmations/{confirmationId} {
+      allow get: if activeUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if activeUser()
+        && request.resource.data.keys().hasAll(['uid', 'periodKey', 'periodStart', 'periodEnd', 'totalWorkDays', 'attendanceFingerprint', 'confirmedByUid', 'confirmationType', 'confirmedAt', 'revision', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'periodKey', 'periodStart', 'periodEnd', 'totalWorkDays', 'attendanceFingerprint', 'confirmedByUid', 'confirmationType', 'confirmedAt', 'revision', 'createdAt'])
+        && confirmationId == request.resource.data.periodKey + '_' + request.resource.data.uid
+        && request.resource.data.uid is string
+        && request.resource.data.periodKey is string
+        && request.resource.data.periodKey.matches('^[0-9]{4}-[0-9]{2}
+      allow create: if activeUser()
+        && request.resource.data.keys().hasAll(['uid', 'displayName', 'type', 'date', 'minutes', 'halfDayPeriod', 'reason', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'type', 'date', 'minutes', 'halfDayPeriod', 'reason', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.displayName is string
+        && request.resource.data.type in ['early_leave', 'half_day', 'annual_leave']
+        && request.resource.data.date is string
+        && request.resource.data.minutes is number
+        && request.resource.data.halfDayPeriod in ['', 'morning', 'afternoon']
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 5
+        && request.resource.data.reason.size() <= 1000
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && ((request.resource.data.type == 'early_leave' && request.resource.data.minutes in [15, 30, 45, 60] && request.resource.data.halfDayPeriod == '')
+          || (request.resource.data.type == 'half_day' && request.resource.data.minutes == 0 && request.resource.data.halfDayPeriod in ['morning', 'afternoon'])
+          || (request.resource.data.type == 'annual_leave' && request.resource.data.minutes == 0 && request.resource.data.halfDayPeriod == ''));
+      allow read: if activeUser() && (resource.data.uid == request.auth.uid || isManager());
+      allow update: if isManager()
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewNote'])
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewNote is string
+        && request.resource.data.reviewNote.size() <= 1000;
+      allow delete: if isAdmin();
+    }
+  }
+})
+        && request.resource.data.periodStart is string
+        && request.resource.data.periodEnd is string
+        && request.resource.data.totalWorkDays is number
+        && request.resource.data.totalWorkDays >= 0
+        && request.resource.data.totalWorkDays <= 31
+        && request.resource.data.attendanceFingerprint is string
+        && request.resource.data.attendanceFingerprint.matches('^[a-f0-9]{64}
+      allow create: if activeUser()
+        && request.resource.data.keys().hasAll(['uid', 'displayName', 'type', 'date', 'minutes', 'halfDayPeriod', 'reason', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'type', 'date', 'minutes', 'halfDayPeriod', 'reason', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.displayName is string
+        && request.resource.data.type in ['early_leave', 'half_day', 'annual_leave']
+        && request.resource.data.date is string
+        && request.resource.data.minutes is number
+        && request.resource.data.halfDayPeriod in ['', 'morning', 'afternoon']
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 5
+        && request.resource.data.reason.size() <= 1000
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && ((request.resource.data.type == 'early_leave' && request.resource.data.minutes in [15, 30, 45, 60] && request.resource.data.halfDayPeriod == '')
+          || (request.resource.data.type == 'half_day' && request.resource.data.minutes == 0 && request.resource.data.halfDayPeriod in ['morning', 'afternoon'])
+          || (request.resource.data.type == 'annual_leave' && request.resource.data.minutes == 0 && request.resource.data.halfDayPeriod == ''));
+      allow read: if activeUser() && (resource.data.uid == request.auth.uid || isManager());
+      allow update: if isManager()
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewNote'])
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewNote is string
+        && request.resource.data.reviewNote.size() <= 1000;
+      allow delete: if isAdmin();
+    }
+  }
+})
+        && request.resource.data.confirmedByUid == request.auth.uid
+        && request.resource.data.confirmationType in ['self', 'admin_confirmed']
+        && request.resource.data.confirmedAt == request.time
+        && request.resource.data.revision == 1
+        && request.resource.data.createdAt == request.time
+        && ((request.resource.data.confirmationType == 'self' && request.resource.data.uid == request.auth.uid)
+          || (request.resource.data.confirmationType == 'admin_confirmed' && isAdmin()));
+      allow update: if activeUser()
+        && (resource.data.uid == request.auth.uid || isAdmin())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalWorkDays', 'attendanceFingerprint', 'confirmedByUid', 'confirmationType', 'confirmedAt', 'revision'])
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.periodKey == resource.data.periodKey
+        && request.resource.data.periodStart == resource.data.periodStart
+        && request.resource.data.periodEnd == resource.data.periodEnd
+        && request.resource.data.totalWorkDays is number
+        && request.resource.data.totalWorkDays >= 0
+        && request.resource.data.totalWorkDays <= 31
+        && request.resource.data.attendanceFingerprint.matches('^[a-f0-9]{64}
+      allow create: if activeUser()
+        && request.resource.data.keys().hasAll(['uid', 'displayName', 'type', 'date', 'minutes', 'halfDayPeriod', 'reason', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'type', 'date', 'minutes', 'halfDayPeriod', 'reason', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.displayName is string
+        && request.resource.data.type in ['early_leave', 'half_day', 'annual_leave']
+        && request.resource.data.date is string
+        && request.resource.data.minutes is number
+        && request.resource.data.halfDayPeriod in ['', 'morning', 'afternoon']
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 5
+        && request.resource.data.reason.size() <= 1000
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && ((request.resource.data.type == 'early_leave' && request.resource.data.minutes in [15, 30, 45, 60] && request.resource.data.halfDayPeriod == '')
+          || (request.resource.data.type == 'half_day' && request.resource.data.minutes == 0 && request.resource.data.halfDayPeriod in ['morning', 'afternoon'])
+          || (request.resource.data.type == 'annual_leave' && request.resource.data.minutes == 0 && request.resource.data.halfDayPeriod == ''));
+      allow read: if activeUser() && (resource.data.uid == request.auth.uid || isManager());
+      allow update: if isManager()
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewNote'])
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewNote is string
+        && request.resource.data.reviewNote.size() <= 1000;
+      allow delete: if isAdmin();
+    }
+  }
+})
+        && request.resource.data.confirmedByUid == request.auth.uid
+        && request.resource.data.confirmationType in ['self', 'admin_confirmed']
+        && request.resource.data.confirmedAt == request.time
+        && request.resource.data.revision == resource.data.revision + 1
+        && ((request.resource.data.confirmationType == 'self' && request.resource.data.uid == request.auth.uid)
+          || (request.resource.data.confirmationType == 'admin_confirmed' && isAdmin()));
+      allow delete: if false;
+    }
     match /attendance_leave_requests/{requestId} {
       allow create: if activeUser()
         && request.resource.data.keys().hasAll(['uid', 'displayName', 'type', 'date', 'minutes', 'halfDayPeriod', 'reason', 'status', 'createdAt', 'updatedAt'])
