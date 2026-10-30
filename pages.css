@@ -48,3 +48,60 @@ body .sub-hero .sub-btn.secondary{color:#07518b !important;background:#fff !impo
   .sub-hero .sub-btn{width:100%;text-align:center}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+.sub-header{position:sticky;top:0;z-index:20;height:82px;padding-inline:max(28px,calc((100% - 1200px)/2));background:#ffffffed;backdrop-filter:blur(16px);box-shadow:0 5px 24px #062c4c08}
+.sub-header>a{display:flex;align-items:center}
+.sub-header img{width:158px;max-height:54px;object-fit:contain}
+.sub-header nav{gap:26px}
+.sub-header nav a{font-size:11px;color:#526674;transition:color .2s}
+.sub-header nav a:hover{color:#168b35}
+.sub-header .home-link{padding:12px 18px;background:#062c4c;border-radius:2px;color:#fff}
+body .sub-hero{isolation:isolate;overflow:hidden;position:relative;padding:112px 24px 104px;background:linear-gradient(118deg,#052a48 0%,#063e66 65%,#07518b 100%)!important;color:#fff!important}
+body .sub-hero::before{content:"";display:block!important;position:absolute;z-index:-1;inset:0;background-image:linear-gradient(#c8e2ee16 1px,transparent 1px),linear-gradient(90deg,#c8e2ee16 1px,transparent 1px);background-size:54px 54px;mask-image:linear-gradient(90deg,#000,transparent 90%)}
+body .sub-hero::after{content:"";display:block!important;position:absolute;z-index:-1;width:540px;height:540px;right:-90px;top:-230px;border:1px solid #b9d9e62e;border-radius:50%;box-shadow:0 0 0 45px #b9d9e60b,0 0 0 95px #b9d9e608}
+body .sub-hero .sub-wrap{max-width:1200px}
+body .sub-hero .sub-kicker{color:#9ed56b!important;letter-spacing:2.3px}
+body .sub-hero h1{max-width:900px;color:#fff!important;font-size:clamp(42px,6vw,76px);letter-spacing:-2.8px;line-height:1.1}
+body .sub-hero h1 em{color:#a6d77b!important;-webkit-text-fill-color:#a6d77b!important}
+body .sub-hero .sub-lead{max-width:700px;color:#c5d6df!important;font-size:15px;line-height:1.9}
+body .sub-hero .sub-btn{border-radius:2px;background:#fff;color:#062c4c;font-size:11px;padding:14px 20px}
+body .sub-hero .sub-btn.secondary{background:transparent!important;color:#fff!important;border:1px solid #ffffff65}
+.sub-section{padding:90px 24px}
+.sub-section>.sub-wrap{max-width:1200px}
+.sub-section .sub-kicker{font-size:9px;letter-spacing:2px}
+.sub-section h2{font-size:clamp(30px,4vw,46px);letter-spacing:-1.5px;color:#062c4c;margin-bottom:18px}
+.sub-section>div>p:not(.sub-kicker){font-size:13px;line-height:2;color:#687c89}
+.sub-grid{gap:16px;margin-top:38px}
+.sub-card{position:relative;padding:27px 25px;border:1px solid #dce6e9;border-radius:2px;box-shadow:0 8px 28px #062c4c06;transition:transform .28s,box-shadow .28s,border-color .28s}
+.sub-card:hover{transform:translateY(-5px);box-shadow:0 18px 42px #062c4c12;border-color:#b6cbd0}
+.sub-card small{font-size:9px;letter-spacing:1.5px}
+.sub-card h3{font-size:16px;color:#062c4c}
+.sub-card p{font-size:11px;line-height:1.9;color:#71828b}
+.sub-note{border-left:2px solid #2eaa25;border-radius:0;background:#f2f7f5;padding:17px 20px;font-size:11px;line-height:1.9}
+.sub-process{gap:0;border-top:1px solid #dce6e9;border-bottom:1px solid #dce6e9}
+.sub-process>div{border:0;border-right:1px solid #dce6e9;border-radius:0;background:transparent;padding:22px}
+.sub-process>div:last-child{border-right:0}
+.sub-process b{font-size:18px;color:#168b35}
+.sub-process span{font-size:11px;color:#526674}
+.material-swatch{border-radius:2px}
+.sub-footer{padding:28px 24px;background:#041f36;color:#a9bdc8}
+.sub-footer .sub-wrap{max-width:1200px}
+.sub-footer a{color:#fff;font-weight:600}
+.sub-footer a:hover{color:#9ed56b}
+@media(max-width:700px){
+.sub-header{height:70px;padding:0 18px}
+.sub-header img{width:130px}
+.sub-header nav{gap:5px}
+.sub-header nav a{font-size:10px;padding:7px 8px}
+body .sub-hero{padding:76px 20px 70px!important}
+body .sub-hero h1{font-size:clamp(36px,9vw,52px);letter-spacing:-1.7px}
+body .sub-hero .sub-lead{font-size:13px}
+.sub-section{padding:62px 20px}
+.sub-grid{grid-template-columns:1fr;gap:12px;margin-top:25px}
+.sub-card{padding:22px}
+.sub-process{grid-template-columns:repeat(2,minmax(0,1fr))}
+.sub-process>div{border-bottom:1px solid #dce6e9}
+.sub-process>div:nth-child(2){border-right:0}
+.sub-process>div:nth-child(3),.sub-process>div:nth-child(4){border-bottom:0}
+}
+@media(prefers-reduced-motion:reduce){.sub-card,.sub-header a{transition:none!important}}
