@@ -447,3 +447,13 @@ button{font:inherit}
 .site-home .ecosystem-card .division-visual:after{z-index:1!important;background:linear-gradient(180deg,rgba(4,25,42,.02),rgba(4,25,42,.2))!important}
 .site-home .ecosystem-card .division-visual>*:not(.division-image){display:none!important}
 @media(max-width:700px){.site-home .ecosystem-card .division-visual{height:210px!important;min-height:210px!important;flex-basis:210px!important}}
+
+
+@media(max-width:760px){
+  .site-header{height:68px!important;min-height:68px!important}
+  .site-header-inner{width:calc(100% - 32px)!important;gap:12px!important}
+  .site-brand{min-width:0!important}
+  .site-brand img{width:auto!important;height:42px!important;max-height:42px!important;max-width:178px!important}
+  .site-menu-toggle{width:42px!important;height:42px!important;flex:0 0 42px!important}
+  .site-nav{top:67px!important;max-height:calc(100vh - 76px);overflow-y:auto}
+}
