@@ -71,3 +71,74 @@ tbody tr:hover{background:#f8fbf8}
   .panel-heading h2{font-size:17px}
   .workspace-shortcut-copy small{line-height:1.45}
 }
+
+
+:root{
+  --ui-ink:#17352f;
+  --ui-muted:#74857f;
+  --ui-border:#dfe9e4;
+  --ui-surface:#ffffff;
+  --ui-canvas:#f2f7f5;
+  --ui-accent:#087b70;
+  --ui-accent-soft:#e1f3ed;
+  --ui-radius:15px;
+}
+body{background:#f2f7f5;color:#17352f}
+.app-shell{background:#f2f7f5}
+.sidebar{background:linear-gradient(180deg,#08756f 0%,#075c5c 52%,#073f4b 100%);color:#effbf7;border-right:1px solid rgba(255,255,255,.12);box-shadow:5px 0 24px rgba(5,54,54,.08)}
+.sidebar:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 15% 78%,rgba(105,190,139,.22),transparent 38%),radial-gradient(ellipse at 85% 22%,rgba(89,190,177,.18),transparent 42%);opacity:.9}
+.sidebar>*{position:relative;z-index:1}
+.sidebar .brand{color:#fff}
+.sidebar .attendance-logo{background:#fff;border-radius:10px;padding:4px;object-fit:contain}
+.sidebar .brand>span{color:#fff}
+.sidebar .brand small{color:#b8e85c}
+.sidebar .side-label{color:rgba(220,246,237,.58)}
+.sidebar .nav-item{color:rgba(239,251,247,.78);border:1px solid transparent;border-radius:11px}
+.sidebar .nav-item:hover{background:rgba(255,255,255,.09);color:#fff}
+.sidebar .nav-item.active{background:rgba(255,255,255,.13);border-color:rgba(153,231,195,.24);box-shadow:inset 3px 0 #9be34d;color:#fff}
+.sidebar .nav-item.active span{color:#b5ed61}
+.sidebar .sidebar-bottom{border-top-color:rgba(255,255,255,.18);color:rgba(239,251,247,.72)}
+.sidebar .status-dot{background:#9be34d}
+.sidebar .version{color:#b5ed61}
+.main{background:transparent}
+.topbar{background:rgba(248,251,249,.94);border-bottom:1px solid #e3ece7}
+.topbar strong{color:#17352f}
+.notice{background:#edf7f0;border-color:#d9e9dc;color:#355d48}
+.notice-icon{background:#dcefe2;color:#087b70}
+.page-intro h1,.panel-heading h2{color:#17352f}
+.eyebrow{color:#16816d}
+.summary-card,.panel{border-color:#dfe9e4;background:#fff;border-radius:15px;box-shadow:0 3px 12px rgba(18,57,44,.035),0 12px 28px rgba(18,57,44,.025)}
+.summary-card:hover,.panel:hover{border-color:#c9ded4;box-shadow:0 5px 16px rgba(18,57,44,.055),0 14px 32px rgba(18,57,44,.035)}
+.metric{color:#1681bd}
+.icon-tile,.workspace-shortcut-icon{background:#e3f4ed;color:#087b70}
+.workspace-launcher{border:1px solid #d9e9e1;background:linear-gradient(115deg,#f4fbf7 0%,#e8f5ef 100%);border-radius:17px;box-shadow:0 5px 20px rgba(18,57,44,.04)}
+.workspace-pill{background:#e2f4e9;color:#26734b}
+.workspace-shortcut{border-color:#dce9e2;background:#fff}
+.workspace-shortcut:hover{border-color:#a9d4bd;background:#f7fcf9}
+.workspace-footer{border-top-color:#d9e7df;color:#72857a}
+.workspace-footer-mark{background:#087b70;color:#fff}
+.outline-button{border-color:#d7e5dd;color:#27634d;background:#fff}
+.outline-button:hover{border-color:#a9d4bd;background:#f4faf6}
+.solid-button,.primary-action{background:#087b70;border-color:#087b70;color:#fff}
+.solid-button:hover,.primary-action:hover{background:#06645c;border-color:#06645c}
+.secondary-action{border-color:#d9e7df;background:#f7faf8;color:#2d6954}
+.secondary-action:hover{background:#edf7f1;border-color:#b9d8c5}
+input,select,textarea{border-color:#d9e5dd;background:#fff;color:#233d33}
+input:focus,select:focus,textarea:focus{border-color:#4aab88;box-shadow:0 0 0 3px rgba(8,123,112,.1)}
+.schedule-banner{background:#edf7f1;border:1px solid #dcebe1}
+.location-card,.tip-card{background:#f7faf8;border-color:#e2ebe5}
+.location-icon{background:#e2f3e9;color:#087b70}
+.radius-note{color:#71857a}
+.table-wrap,.admin-table-wrap{border-color:#dfe9e4}
+thead th{background:#f0f6f2;color:#526e60}
+tbody tr:hover{background:#f3faf6}
+.status-badge,.table-status,.leave-status{border-radius:999px}
+#view-overview .admin-page-intro{background:linear-gradient(115deg,#eaf7f0,#f5fbf7);border:1px solid #dcebe2}
+#view-overview .admin-stats .summary-card{border-color:#dce9e2}
+#view-overview .admin-attendance-panel,#view-overview .admin-adjustments-panel{border-color:#dce9e2}
+.sidebar .nav-item:focus-visible,.outline-button:focus-visible,.solid-button:focus-visible{outline:3px solid rgba(153,227,77,.42);outline-offset:2px}
+@media(max-width:760px){
+  .sidebar{background:linear-gradient(90deg,#08756f,#075c5c);box-shadow:0 4px 18px rgba(5,54,54,.12)}
+  .sidebar .nav-item.active{background:rgba(255,255,255,.16);box-shadow:inset 0 -3px #a5e34e}
+  .topbar{background:rgba(248,251,249,.97)}
+}
