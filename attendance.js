@@ -1339,22 +1339,38 @@ $("employee-admin-search").addEventListener("input", (event) => {
 });
 $("add-site").addEventListener("click", async () => {
   if (state.profile?.role !== "admin") { toast("Chỉ quản trị viên được thêm địa điểm."); return; }
+  if (!navigator.geolocation) { toast("Thiết bị không hỗ trợ GPS."); return; }
   const name = window.prompt("Tên địa điểm:");
   if (!name?.trim()) return;
   const address = window.prompt("Địa chỉ:");
   if (address === null) return;
-  const latitude = Number(window.prompt("Vĩ độ (latitude):", "20.841202"));
-  const longitude = Number(window.prompt("Kinh độ (longitude):", "106.666418"));
-  const radiusMeters = Number(window.prompt("Bán kính cho phép (m):", "150"));
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || !Number.isFinite(radiusMeters) || radiusMeters < 25 || radiusMeters > 2000) {
-    toast("Tọa độ hoặc bán kính không hợp lệ.");
-    return;
-  }
+  toast("Đang xác định GPS tại vị trí hiện tại...");
   try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    });
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const accuracy = Math.round(position.coords.accuracy);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || accuracy > 100) {
+      throw new Error("GPS chưa đủ chính xác (" + accuracy + " m). Hãy đứng tại địa điểm cần lưu, bật định vị chính xác và thử lại.");
+    }
+    const confirmed = window.confirm("Tọa độ GPS vừa lấy tại vị trí hiện tại:\nVĩ độ: " + latitude.toFixed(6) + "\nKinh độ: " + longitude.toFixed(6) + "\nĐộ chính xác: khoảng " + accuracy + " m\n\nLưu địa điểm tại đúng vị trí này?");
+    if (!confirmed) return;
+    const radiusMeters = Number(window.prompt("Bán kính cho phép (m):", "150"));
+    if (!Number.isFinite(radiusMeters) || radiusMeters < 25 || radiusMeters > 2000) {
+      toast("Bán kính không hợp lệ. Nhập từ 25 đến 2.000 mét.");
+      return;
+    }
     await addDoc(collection(db, "attendance_sites"), { name: name.trim(), address: (address || "").trim(), latitude, longitude, radiusMeters, active: true, createdAt: serverTimestamp(), createdBy: state.user.uid });
     await loadSites();
-    toast("Đã thêm địa điểm chấm công.");
-  } catch (error) { showError(error); }
+    toast("Đã lưu địa điểm với tọa độ GPS vừa lấy tại chỗ.");
+  } catch (error) {
+    if (error?.code === 1) toast("Bạn chưa cấp quyền truy cập vị trí. Hãy cho phép GROVA ATTENDANCE sử dụng GPS.");
+    else if (error?.code === 2) toast("Không xác định được vị trí GPS. Hãy thử lại tại nơi thông thoáng.");
+    else if (error?.code === 3) toast("GPS hết thời gian chờ. Hãy thử lại.");
+    else showError(error);
+  }
 });
 const login = document.createElement("div");
 login.id = "attendance-login";
